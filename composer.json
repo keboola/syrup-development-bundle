@@ -14,7 +14,8 @@
         "sensio/framework-extra-bundle": "2.1.*",
         "sensio/generator-bundle": "2.1.*",
 	    "keboola/storage-api-client": "2.5.6",
-	    "keboola/csv": "1.0.*"
+	    "keboola/csv": "1.0.*",
+	    "guzzle/guzzle": "3.0.*"
     },
     "scripts": {
         "post-install-cmd": [
