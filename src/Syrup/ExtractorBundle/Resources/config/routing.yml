@@ -1,0 +1,3 @@
+syrup_extractor_api:
+    pattern:  /{extractorName}/run
+    defaults: { _controller: SyrupExtractorBundle:Api:run }
