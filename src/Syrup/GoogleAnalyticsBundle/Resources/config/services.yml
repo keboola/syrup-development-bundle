@@ -1,0 +1,7 @@
+parameters:
+#    syrup_google_analytics.example.class: Syrup\GoogleAnalyticsBundle\Example
+
+services:
+#    syrup_google_analytics.example:
+#        class: %syrup_google_analytics.example.class%
+#        arguments: [@service_id, "plain_value", %parameter%]
