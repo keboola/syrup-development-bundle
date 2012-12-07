@@ -5,7 +5,7 @@
  * Time: 14:40
  */
 
-namespace Syrup\ExtractorBundle\Monolog\Formatter;
+namespace Syrup\ComponentBundle\Monolog\Formatter;
 
 use Monolog\Formatter\JsonFormatter;
 
@@ -13,22 +13,22 @@ class SyrupJsonFormatter extends JsonFormatter
 {
 	protected $_appName;
 	protected $_runId;
-	protected $_extractorName = '';
+	protected $_componentName = '';
 	protected $_logData;
 
 	public function __construct($appName)
 	{
 		$this->_appName = $appName;
 		$this->_runId = $appName . '-';
-		if ($this->_extractorName) {
-			$this->_runId .= $this->_extractorName . '-';
+		if ($this->_componentName) {
+			$this->_runId .= $this->_componentName . '-';
 		}
 		$this->_runId .= md5(microtime());
 	}
 
-	public function setExtractorName($extractorName)
+	public function setComponentName($name)
 	{
-		$this->_extractorName = $extractorName;
+		$this->_componentName = $name;
 	}
 
 	public function setLogData($logData)
@@ -42,7 +42,7 @@ class SyrupJsonFormatter extends JsonFormatter
 	public function format(array $record)
 	{
 		$record['app']          = $this->_appName;
-		$record['extractor']    = $this->_extractorName;
+		$record['component']    = $this->_componentName;
 		$record['priority']     = $record['level_name'];
 		$record['user']         = $this->_logData;
 

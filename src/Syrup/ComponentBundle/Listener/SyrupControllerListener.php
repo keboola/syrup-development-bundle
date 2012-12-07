@@ -5,7 +5,7 @@
  * Date: 23.11.12
  * Time: 15:09
  */
-namespace Syrup\ExtractorBundle\Listener;
+namespace Syrup\ComponentBundle\Listener;
 
 use Symfony\Component\HttpKernel\Event\FilterControllerEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;

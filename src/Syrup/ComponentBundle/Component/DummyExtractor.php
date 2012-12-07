@@ -7,14 +7,15 @@
  * To change this template use File | Settings | File Templates.
  */
 
-namespace Syrup\ExtractorBundle\Extractor;
+namespace Syrup\ComponentBundle\Component;
 
-use \Syrup\ExtractorBundle\Extractor\Extractor;
+use \Syrup\ComponentBundle\Component\Component;
 use Keboola\StorageApi\Table;
 
-class DummyExtractor extends Extractor
+class DummyExtractor extends Component
 {
-	protected $_extractorName = 'dummy';
+	protected $_name = 'dummy';
+	protected $_prefix = 'ex';
 
 	protected function _process($config)
 	{

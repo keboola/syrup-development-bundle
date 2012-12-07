@@ -5,7 +5,7 @@
  * Date: 23.11.12
  * Time: 14:55
  */
-namespace Syrup\ExtractorBundle\Listener;
+namespace Syrup\ComponentBundle\Listener;
 
 use Symfony\Component\HttpKernel\Event\GetResponseForExceptionEvent;
 use Symfony\Component\HttpFoundation\Response;

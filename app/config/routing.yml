@@ -1,5 +1,5 @@
-syrup_extractor:
-    resource: "@SyrupExtractorBundle/Resources/config/routing.yml"
+syrup_component:
+    resource: "@SyrupComponentBundle/Resources/config/routing.yml"
     prefix:   /
 
 # Internal routing configuration to handle ESI

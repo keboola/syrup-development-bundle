@@ -6,15 +6,15 @@
  * Time: 17:04
  */
 
-namespace Syrup\ExtractorBundle\Extractor;
+namespace Syrup\ComponentBundle\Component;
 
-use Syrup\ExtractorBundle\Extractor\ExtractorInterface;
+use Syrup\ComponentBundle\Component\ComponentInterface;
 use Keboola\StorageApi\Client;
 use Keboola\StorageApi\Config\Reader;
 use Keboola\StorageApi\Table;
 use Symfony\Component\DependencyInjection\ContainerAware;
 
-class Extractor extends ContainerAware implements ExtractorInterface
+class Component extends ContainerAware implements ComponentInterface
 {
 	/**
 	 * @var \Keboola\StorageApi\Client
@@ -26,9 +26,9 @@ class Extractor extends ContainerAware implements ExtractorInterface
 	 */
 	protected $_log;
 
-	protected $_extractorName = 'extractorName';
+	protected $_name = 'componentName';
 
-	protected $_extractorPrefix = 'ex';
+	protected $_prefix = '';
 
 	public function __construct(Client $storageApi, $log)
 	{
@@ -78,10 +78,9 @@ class Extractor extends ContainerAware implements ExtractorInterface
 	 */
 	public function getConfig()
 	{
-		if ($this->_storageApi->bucketExists('sys.c-' . $this->_extractorPrefix . '-' . $this->_extractorName)) {
-			return Reader::read('sys.c-' . $this->_extractorPrefix . '-' . $this->_extractorName);
+		if ($this->_storageApi->bucketExists('sys.c-' . $this->_prefix . '-' . $this->_name)) {
+			return Reader::read('sys.c-' . $this->_prefix . '-' . $this->_name);
 		} else {
-			//throw new \Exception("SYS bucket doesn't exists");
 			return array();
 		}
 	}

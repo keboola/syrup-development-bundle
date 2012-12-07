@@ -9,11 +9,12 @@
 
 namespace Syrup\GoogleAnalyticsBundle\Extractor;
 
-use Syrup\ExtractorBundle\Extractor\Extractor;
+use Syrup\ComponentBundle\Component\Component;
 
 class GoogleAnalyticsExtractor extends Extractor
 {
-	protected $_extractorName = 'googleAnalytics';
+	protected $_name = 'googleAnalytics';
+	protected $_prefix = 'ex';
 
 	protected function _process($config)
 	{

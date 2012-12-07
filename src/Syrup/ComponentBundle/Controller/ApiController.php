@@ -1,12 +1,12 @@
 <?php
 
-namespace Syrup\ExtractorBundle\Controller;
+namespace Syrup\ComponentBundle\Controller;
 
 use Symfony\Component\DependencyInjection\ContainerAware;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Keboola\StorageApi\Client;
-use Syrup\ExtractorBundle\Extractor\ExtractorInterface;
+use Syrup\ComponentBundle\Component\ComponentInterface;
 
 class ApiController extends ContainerAware
 {
@@ -32,15 +32,14 @@ class ApiController extends ContainerAware
 	 * Abstract run action - override this in child extractors
 	 * @return \Symfony\Component\HttpFoundation\Response
 	 */
-    public function runAction($extractorName)
+    public function runAction($componentName)
     {
 	    /**
-	     * @var ExtractorInterface $extractor
+	     * @var ComponentInterface $component
 	     */
-	    $extractor = $this->container->get('syrup.extractor_factory')->get($this->_storageApi, $extractorName);
+	    $component = $this->container->get('syrup.component_factory')->get($this->_storageApi, $componentName);
 	    $this->container->get('logger');
-	    //$extractor->setContainer($this->container);
-	    $extractor->run();
+	    $component->run();
 
 	    $response = new Response(json_encode(array(
 		    'status'    => 'ok'

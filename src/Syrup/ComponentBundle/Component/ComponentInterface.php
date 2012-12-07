@@ -7,12 +7,12 @@
  * Time: 16:31
  */
 
-namespace Syrup\ExtractorBundle\Extractor;
+namespace Syrup\ComponentBundle\Component;
 
 /**
- * All interfaces should implement ExtractorInterface
+ * All interfaces should implement ComponentInterface
  */
-interface ExtractorInterface
+interface ComponentInterface
 {
 	public function run();
 }
