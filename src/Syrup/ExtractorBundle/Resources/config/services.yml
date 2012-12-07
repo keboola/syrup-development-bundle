@@ -1,5 +1,10 @@
 parameters:
 #    syrup_extractor.example.class: Syrup\ExtractorBundle\Example
+    extractors:
+        dummy:
+            class: Syrup\ExtractorBundle\Extractor\DummyExtractor
+        googleanalytics:
+            class: Syrup\GoogleAnalyticsBundle\Extractor\GoogleAnalyticsExtractor
 
 services:
     syrup.extractorbundle.listener.exception:
@@ -13,7 +18,8 @@ services:
             - { name: kernel.event_listener, event: kernel.controller, method: onKernelController }
     syrup.extractor_factory:
         class: Syrup\ExtractorBundle\Extractor\ExtractorFactory
-        arguments: [@logger]
+        arguments: [@logger,%extractors%]
     syrup.monolog.json_formatter:
         class: Syrup\ExtractorBundle\Monolog\Formatter\SyrupJsonFormatter
         arguments: [%app_name%]
+

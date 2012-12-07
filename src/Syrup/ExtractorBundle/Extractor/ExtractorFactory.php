@@ -15,23 +15,41 @@ class ExtractorFactory
 {
 	protected $_logger;
 
-	public function __construct(Logger $logger)
+	protected $_extractorsConfig;
+
+	public function __construct(Logger $logger, $extractorsConfig)
 	{
 		$this->_logger = $logger;
+		$this->_extractorsConfig = $extractorsConfig;
 	}
 
+	/**
+	 * @param \Keboola\StorageApi\Client $storageApi
+	 * @param $extractorName
+	 * @return ExtractorInterface $extractor
+	 * @throws \Exception
+	 */
 	public function get(Client $storageApi, $extractorName)
 	{
-		$className = '\\Syrup\\ExtractorBundle\\Extractor\\' . ucfirst($extractorName) . 'Extractor';
-		if (class_exists($className)) {
-			/**
-			 * @var ExtractorInterface $extractor
-			 */
-			return new $className($storageApi, $this->_logger);
+		if (isset($this->_extractorsConfig[strtolower($extractorName)])) {
+
+			$extractorConfig = $this->_extractorsConfig[strtolower($extractorName)];
+
+			if (isset($extractorConfig['class'])) {
+				$className = $extractorConfig['class'];
+				if (class_exists($extractorConfig['class'])) {
+					return new $className($storageApi, $this->_logger);
+				} else {
+					$error = 'Extractor class "'.$extractorConfig['class'].'" does not exists';
+				}
+			} else {
+				$error = 'Missing class definition in configuration.';
+			}
 		} else {
-			$this->_logger->err("Extractor does not exist");
-			throw new \Exception('Extractor does not exist');
+			$error = 'Missing configuration or wrong extractor name';
 		}
+
+		throw new \Exception('Failed to load extractor. ' . $error);
 	}
 
 }

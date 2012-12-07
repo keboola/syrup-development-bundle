@@ -14,7 +14,7 @@ use Keboola\StorageApi\Table;
 
 class DummyExtractor extends Extractor
 {
-	protected $_sysBucketName = 'c-dummyExtractor';
+	protected $_extractorName = 'dummy';
 
 	protected function _process($config)
 	{

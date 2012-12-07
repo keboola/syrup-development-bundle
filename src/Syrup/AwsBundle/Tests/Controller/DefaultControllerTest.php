@@ -1,6 +1,6 @@
 <?php
 
-namespace Syrup\GoogleAnalyticsBundle\Tests\Controller;
+namespace Syrup\AwsBundle\Tests\Controller;
 
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 

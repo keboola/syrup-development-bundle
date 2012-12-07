@@ -26,7 +26,9 @@ class Extractor extends ContainerAware implements ExtractorInterface
 	 */
 	protected $_log;
 
-	protected $_sysBucketName = 'extractorName';
+	protected $_extractorName = 'extractorName';
+
+	protected $_extractorPrefix = 'ex';
 
 	public function __construct(Client $storageApi, $log)
 	{
@@ -76,8 +78,8 @@ class Extractor extends ContainerAware implements ExtractorInterface
 	 */
 	public function getConfig()
 	{
-		if ($this->_storageApi->bucketExists('sys.' . $this->_sysBucketName)) {
-			return Reader::read('sys.' . $this->_sysBucketName);
+		if ($this->_storageApi->bucketExists('sys.c-' . $this->_extractorPrefix . '-' . $this->_extractorName)) {
+			return Reader::read('sys.c-' . $this->_extractorPrefix . '-' . $this->_extractorName);
 		} else {
 			//throw new \Exception("SYS bucket doesn't exists");
 			return array();
