@@ -37,11 +37,11 @@ class Component extends ContainerAware implements ComponentInterface
 		Reader::$client = $this->_storageApi;
 	}
 
-	public function run()
+	public function run($params = null)
 	{
 		$config = $this->getConfig();
 
-		$result = $this->_process($config);
+		$result = $this->_process($config, $params);
 
 		if ($result) {
 			if (is_array($result)) {
@@ -57,7 +57,7 @@ class Component extends ContainerAware implements ComponentInterface
 	/**
 	 * Override this - get data from remote services
 	 */
-	protected function _process($config)
+	protected function _process($config, $params)
 	{
 		return false;
 	}

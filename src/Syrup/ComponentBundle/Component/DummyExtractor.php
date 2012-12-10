@@ -17,7 +17,7 @@ class DummyExtractor extends Component
 	protected $_name = 'dummy';
 	protected $_prefix = 'ex';
 
-	protected function _process($config)
+	protected function _process($config, $params)
 	{
 		// Get some data
 		$data = array(

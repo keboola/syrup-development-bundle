@@ -13,20 +13,34 @@ use AmazonRDS,
 
 class RdsProvisioner extends Component
 {
+	protected $_name = 'rds-provisioner';
+
 	/**
 	 * @var AmazonRDS
 	 */
 	protected  $_rds;
 
-	protected function _process($config)
+	protected function _process($config, $params)
 	{
 		echo "Provisioning stuff";
+		print_r($config);
+		print_r($params);
 
 		$this->_rds = new AmazonRDS(array(
 			'key'       => 'key',
 			'secret'    => 'secret',
 			'token'     => 'token'
 		));
+	}
+
+	protected function _create()
+	{
+
+	}
+
+	protected function _delete()
+	{
+
 	}
 
 }

@@ -34,12 +34,14 @@ class ApiController extends ContainerAware
 	 */
     public function runAction($componentName)
     {
+	    $request = $this->getRequest();
+
 	    /**
 	     * @var ComponentInterface $component
 	     */
 	    $component = $this->container->get('syrup.component_factory')->get($this->_storageApi, $componentName);
 	    $this->container->get('logger');
-	    $component->run();
+	    $component->run($request->getContent());
 
 	    $response = new Response(json_encode(array(
 		    'status'    => 'ok'
