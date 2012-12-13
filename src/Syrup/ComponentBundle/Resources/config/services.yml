@@ -1,11 +1,4 @@
 parameters:
-    components:
-        ex-dummy:
-            class: Syrup\ComponentBundle\Component\DummyExtractor
-        ex-googleanalytics:
-            class: Syrup\GoogleAnalyticsBundle\Extractor\GoogleAnalyticsExtractor
-        rds-provisioner:
-            class: Syrup\AwsBundle\Provisioner\RdsProvisioner
 
 services:
     syrup.componentbundle.listener.exception:
@@ -19,7 +12,7 @@ services:
             - { name: kernel.event_listener, event: kernel.controller, method: onKernelController }
     syrup.component_factory:
         class: Syrup\ComponentBundle\Component\ComponentFactory
-        arguments: [@logger, %components%]
+        arguments: [@logger, @doctrine, %components%]
     syrup.monolog.json_formatter:
         class: Syrup\ComponentBundle\Monolog\Formatter\SyrupJsonFormatter
         arguments: [%app_name%]

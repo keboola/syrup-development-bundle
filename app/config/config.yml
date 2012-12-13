@@ -17,3 +17,21 @@ framework:
     trust_proxy_headers: false # Whether or not the Request object should trust proxy headers (X_FORWARDED_FOR/HTTP_CLIENT_IP)
     session:         ~
 
+doctrine:
+    dbal:
+        connections:
+            default:
+                driver:   %database_driver%
+                host:     %database_host%
+                dbname:   %database_name%
+                user:     %database_user%
+                password: %database_password%
+                charset:  UTF8
+            slevomat:
+                driver:   %slevomat.database_driver%
+                host:     %slevomat.database_host%
+                dbname:   %slevomat.database_name%
+                user:     %slevomat.database_user%
+                password: %slevomat.database_password%
+                charset:  UTF8
+

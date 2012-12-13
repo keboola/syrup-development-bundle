@@ -1,7 +1,3 @@
-syrup_slevomat:
-    resource: "@SyrupSlevomatBundle/Resources/config/routing.yml"
-    prefix:   /
-
 syrup_component:
     resource: "@SyrupComponentBundle/Resources/config/routing.yml"
     prefix:   /

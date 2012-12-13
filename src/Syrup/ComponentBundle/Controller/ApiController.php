@@ -36,12 +36,8 @@ class ApiController extends ContainerAware
     {
 	    $request = $this->getRequest();
 
-	    /**
-	     * @var ComponentInterface $component
-	     */
 	    $component = $this->container->get('syrup.component_factory')->get($this->_storageApi, $componentName);
-	    $this->container->get('logger');
-	    $component->run($request->getContent());
+	    $component->run(json_decode($request->getContent(), true));
 
 	    $response = new Response(json_encode(array(
 		    'status'    => 'ok'

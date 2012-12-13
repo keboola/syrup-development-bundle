@@ -11,6 +11,7 @@ namespace Syrup\ComponentBundle\Component;
 
 use Keboola\StorageApi\Client;
 use Monolog\Logger;
+use Doctrine\Bundle\DoctrineBundle\Registry;
 
 class ComponentFactory
 {
@@ -24,10 +25,16 @@ class ComponentFactory
 	 */
 	protected $_componentsConfig;
 
-	public function __construct(Logger $logger, array $componentsConfig)
+	/**
+	 * @var Registry
+	 */
+	protected $_dbal;
+
+	public function __construct(Logger $logger, Registry $dbal, array $componentsConfig)
 	{
 		$this->_logger = $logger;
 		$this->_componentsConfig = $componentsConfig;
+		$this->_dbal = $dbal;
 	}
 
 	/**
@@ -45,7 +52,14 @@ class ComponentFactory
 			if (isset($componentConfig['class'])) {
 				$className = $componentConfig['class'];
 				if (class_exists($componentConfig['class'])) {
-					return new $className($storageApi, $this->_logger);
+					$component = new $className($storageApi, $this->_logger);
+
+					if (isset($componentConfig['db'])) {
+						$component->setConnection($this->_dbal->getConnection($componentConfig['db']));
+					}
+
+					return $component;
+
 				} else {
 					$error = 'Component class "'.$componentConfig['class'].'" does not exists';
 				}

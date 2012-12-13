@@ -12,9 +12,9 @@ use Syrup\ComponentBundle\Component\ComponentInterface;
 use Keboola\StorageApi\Client;
 use Keboola\StorageApi\Config\Reader;
 use Keboola\StorageApi\Table;
-use Symfony\Component\DependencyInjection\ContainerAware;
+use Doctrine\DBAL\Connection;
 
-class Component extends ContainerAware implements ComponentInterface
+class Component implements ComponentInterface
 {
 	/**
 	 * @var \Keboola\StorageApi\Client
@@ -26,6 +26,11 @@ class Component extends ContainerAware implements ComponentInterface
 	 */
 	protected $_log;
 
+	/**
+	 * @var Connection $conn
+	 */
+	protected $_db;
+
 	protected $_name = 'componentName';
 
 	protected $_prefix = '';
@@ -35,6 +40,11 @@ class Component extends ContainerAware implements ComponentInterface
 		$this->_storageApi = $storageApi;
 		$this->_log = $log;
 		Reader::$client = $this->_storageApi;
+	}
+
+	public function setConnection($db)
+	{
+		$this->_db = $db;
 	}
 
 	public function run($params = null)

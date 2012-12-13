@@ -11,7 +11,7 @@ namespace Syrup\GoogleAnalyticsBundle\Extractor;
 
 use Syrup\ComponentBundle\Component\Component;
 
-class GoogleAnalyticsExtractor extends Extractor
+class GoogleAnalyticsExtractor extends Component
 {
 	protected $_name = 'googleAnalytics';
 	protected $_prefix = 'ex';

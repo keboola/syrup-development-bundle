@@ -1,5 +1,5 @@
 {
-    "hash": "27cd5a95515b935dc9d9387e01cc99f6",
+    "hash": "a9ca15be3c963b7ac23bd6c335d3a63b",
     "packages": [
         {
             "name": "amazonwebservices/aws-sdk-for-php",
@@ -253,33 +253,103 @@
             ]
         },
         {
-            "name": "guzzle/guzzle",
-            "version": "v3.0.5",
+            "name": "doctrine/orm",
+            "version": "2.3.x-dev",
             "source": {
                 "type": "git",
-                "url": "https://github.com/guzzle/guzzle",
-                "reference": "v3.0.5"
+                "url": "git://github.com/doctrine/doctrine2.git",
+                "reference": "59aef2ca950ab30c72dbbd77f9ae446551751e58"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://github.com/guzzle/guzzle/archive/v3.0.5.zip",
-                "reference": "v3.0.5",
+                "url": "https://github.com/doctrine/doctrine2/archive/59aef2ca950ab30c72dbbd77f9ae446551751e58.zip",
+                "reference": "59aef2ca950ab30c72dbbd77f9ae446551751e58",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.3.2",
+                "ext-pdo": "*",
+                "symfony/console": "2.*",
+                "doctrine/dbal": "2.3.*"
+            },
+            "suggest": {
+                "symfony/yaml": "If you want to use YAML Metadata Mapping Driver"
+            },
+            "time": "1354658665",
+            "bin": [
+                "bin/doctrine",
+                "bin/doctrine.php"
+            ],
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "2.3.x-dev"
+                }
+            },
+            "installation-source": "source",
+            "autoload": {
+                "psr-0": {
+                    "Doctrine\\ORM": "lib/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Jonathan Wage",
+                    "email": "jonwage@gmail.com",
+                    "homepage": "http://www.jwage.com/"
+                },
+                {
+                    "name": "Guilherme Blanco",
+                    "email": "guilhermeblanco@gmail.com",
+                    "homepage": "http://www.instaclick.com"
+                },
+                {
+                    "name": "Roman Borschel",
+                    "email": "roman@code-factory.org"
+                },
+                {
+                    "name": "Benjamin Eberlei",
+                    "email": "kontakt@beberlei.de"
+                }
+            ],
+            "description": "Object-Relational-Mapper for PHP",
+            "homepage": "http://www.doctrine-project.org",
+            "keywords": [
+                "database",
+                "orm"
+            ]
+        },
+        {
+            "name": "guzzle/guzzle",
+            "version": "dev-master",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/guzzle/guzzle",
+                "reference": "v3.0.6"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://github.com/guzzle/guzzle/archive/v3.0.6.zip",
+                "reference": "v3.0.6",
                 "shasum": ""
             },
             "require": {
                 "php": ">=5.3.2",
                 "ext-curl": "*",
-                "symfony/event-dispatcher": "2.1.*"
+                "symfony/event-dispatcher": ">=2.1"
             },
             "replace": {
-                "guzzle/batch": "self.version",
-                "guzzle/cache": "self.version",
                 "guzzle/common": "self.version",
                 "guzzle/http": "self.version",
+                "guzzle/parser": "self.version",
+                "guzzle/batch": "self.version",
+                "guzzle/cache": "self.version",
                 "guzzle/inflection": "self.version",
                 "guzzle/iterator": "self.version",
                 "guzzle/log": "self.version",
-                "guzzle/parser": "self.version",
                 "guzzle/plugin": "self.version",
                 "guzzle/plugin-async": "self.version",
                 "guzzle/plugin-backoff": "self.version",
@@ -288,25 +358,36 @@
                 "guzzle/plugin-curlauth": "self.version",
                 "guzzle/plugin-history": "self.version",
                 "guzzle/plugin-log": "self.version",
-                "guzzle/plugin-md5": "self.version",
                 "guzzle/plugin-mock": "self.version",
                 "guzzle/plugin-oauth": "self.version",
                 "guzzle/service": "self.version",
-                "guzzle/stream": "self.version"
+                "guzzle/stream": "self.version",
+                "guzzle/plugin-md5": "self.version"
             },
             "require-dev": {
                 "doctrine/common": "*",
                 "symfony/class-loader": "*",
                 "monolog/monolog": "1.*",
-                "zendframework/zend-cache": "2.0.*",
-                "zendframework/zend-log": "2.0.*",
                 "zend/zend-log1": "1.12",
                 "zend/zend-cache1": "1.12",
+                "zendframework/zend-cache": "2.0.*",
+                "zendframework/zend-log": "2.0.*",
                 "phpunit/phpunit": "3.7.*"
             },
-            "time": "2012-11-19 00:15:33",
+            "suggest": {
+                "symfony/class-loader": "*",
+                "monolog/monolog": "*",
+                "zend/zend-cache": "2.0.0beta3",
+                "zend/zend-log": "2.0.0beta3"
+            },
+            "time": "1355117104",
             "type": "library",
-            "installation-source": "dist",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "3.0-dev"
+                }
+            },
+            "installation-source": "source",
             "autoload": {
                 "psr-0": {
                     "Guzzle\\Tests": "tests/",
@@ -826,12 +907,12 @@
             "source": {
                 "type": "git",
                 "url": "git://github.com/symfony/symfony.git",
-                "reference": "74c8b0150a66ff092b294ca6d29f285ccdba72e4"
+                "reference": "d451933ca1158bb70ba7b11f0bf237de2c89d8f4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://github.com/symfony/symfony/archive/74c8b0150a66ff092b294ca6d29f285ccdba72e4.zip",
-                "reference": "74c8b0150a66ff092b294ca6d29f285ccdba72e4",
+                "url": "https://github.com/symfony/symfony/archive/d451933ca1158bb70ba7b11f0bf237de2c89d8f4.zip",
+                "reference": "d451933ca1158bb70ba7b11f0bf237de2c89d8f4",
                 "shasum": ""
             },
             "require": {
@@ -880,7 +961,7 @@
                 "propel/propel1": "dev-master",
                 "monolog/monolog": "1.*"
             },
-            "time": "1354887294",
+            "time": "1355131004",
             "type": "library",
             "installation-source": "source",
             "autoload": {
@@ -914,18 +995,18 @@
             "source": {
                 "type": "git",
                 "url": "git://github.com/fabpot/Twig.git",
-                "reference": "496537a08d83db88b35d07dc9d0b2a254df751a1"
+                "reference": "0372d72c793892b4cdfd70f2af61bed7cf2c23ac"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://github.com/fabpot/Twig/archive/496537a08d83db88b35d07dc9d0b2a254df751a1.zip",
-                "reference": "496537a08d83db88b35d07dc9d0b2a254df751a1",
+                "url": "https://github.com/fabpot/Twig/archive/0372d72c793892b4cdfd70f2af61bed7cf2c23ac.zip",
+                "reference": "0372d72c793892b4cdfd70f2af61bed7cf2c23ac",
                 "shasum": ""
             },
             "require": {
                 "php": ">=5.2.4"
             },
-            "time": "1354825834",
+            "time": "1354955760",
             "type": "library",
             "extra": {
                 "branch-alias": {
