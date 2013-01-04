@@ -34,13 +34,18 @@ class ApiController extends ContainerAware
 	 */
     public function runAction($componentName)
     {
+	    set_time_limit(3600*3);
+
 	    $request = $this->getRequest();
 
+	    $timestart = microtime(true);
 	    $component = $this->container->get('syrup.component_factory')->get($this->_storageApi, $componentName);
 	    $component->run(json_decode($request->getContent(), true));
+	    $duration = microtime(true) - $timestart;
 
 	    $response = new Response(json_encode(array(
-		    'status'    => 'ok'
+		    'status'    => 'ok',
+		    'duration'  => $duration
 	    )));
 
 	    return $response;

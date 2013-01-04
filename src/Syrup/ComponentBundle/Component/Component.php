@@ -13,6 +13,7 @@ use Keboola\StorageApi\Client;
 use Keboola\StorageApi\Config\Reader;
 use Keboola\StorageApi\Table;
 use Doctrine\DBAL\Connection;
+use Symfony\Component\HttpFoundation\Response;
 
 class Component implements ComponentInterface
 {

@@ -13,6 +13,6 @@ monolog:
     handlers:
         syslog:
             type: syslog
-            level: info
+            level: debug
             formatter: syrup.monolog.json_formatter
 

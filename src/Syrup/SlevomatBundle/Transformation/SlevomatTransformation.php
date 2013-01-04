@@ -23,40 +23,59 @@ class SlevomatTransformation extends Component
 		}
 
 		$transformConfig = array();
-		if (isset($config['configuration'])) {
-			$transformConfig = $config['configuration'];
+		if (isset($params['configuration'])) {
+			$transformConfig = $params['configuration'];
+		}
+
+		$tables = array();
+		$prefix = '';
+		if (strstr($params['source'], ',')) {
+			$tables = explode(',', $params['source']);
+			$tables = array_map(function($item) {
+				return trim($item);
+			}, $tables);
+
+			$prefixArr = explode('.', $tables[0]);
+			$prefix = $prefixArr[0] . '.' . $prefixArr[1];
+		} else {
+			if ($this->_storageApi->bucketExists($params['source'])) {
+				$tableList = $this->_storageApi->listTables($params['source']);
+				foreach($tableList as $tab) {
+					$tables[] = $tab['id'];
+				}
+				$prefix = $params['source'];
+			}
 		}
 
 		if (!isset($transformConfig['import']) || $transformConfig['import'] == 1) {
 			$this->_log->info("Importing source - START");
-			//$this->_import($params['source'], $transformConfig);
+			$this->_import($tables);
 			$this->_log->info("Importing source - END");
 		}
 
 		if (!isset($transformConfig['transform']) || $transformConfig['transform'] == 1) {
 			$this->_log->info("Transforming - START");
-			$this->_transform();
+			$this->_transform($prefix);
 			$this->_log->info("Transforming - END");
 		}
 
 		if (!isset($transformConfig['export']) || $transformConfig['export'] == 1) {
 			$this->_log->info("Exporting output - START");
-			$this->_export($params['destination']);
+			$this->_export($params['destination'], $prefix);
 			$this->_log->info("Exporting output - END");
 		}
 
+		return false;
 	}
 
-	protected function _import($sourceBucket, $transformConfig)
+	protected function _import($tables)
 	{
-		$tables = $this->_storageApi->listTables($sourceBucket);
-
 		foreach($tables as $t) {
 
-			$this->_log->info("Importing table " . $t['id']);
+			$this->_log->info("Importing table " . $t);
 
-			$table = $this->_storageApi->getTable($t['id']);
-			$tableName = $sourceBucket . "." . $table['name'];
+			$table = $this->_storageApi->getTable($t);
+			$tableName = $table['id'];
 
 			$sql = "DROP TABLE IF EXISTS `" . $tableName . "`";
 			$this->_db->query($sql);
@@ -69,12 +88,12 @@ class SlevomatTransformation extends Component
 			$sql .= ")";
 			$this->_db->query($sql);
 
-			$filename = ROOT_PATH . "/tmp/" . $this->_prefix . '-' . $this->_name . '-' . $tableName . "_" . md5(microtime()) . ".csv";
+			$filename = "/tmp/" . $this->_prefix . '-' . $this->_name . '-' . $tableName . "_" . md5(microtime()) . ".csv";
 
 			$this->_storageApi->exportTable($table['id'], $filename);
 
 			$this->_db->query("
-				LOAD DATA LOCAL INFILE '{$filename}' INTO TABLE {$table['name']}
+				LOAD DATA LOCAL INFILE '{$filename}' INTO TABLE `{$tableName}`
                 FIELDS TERMINATED BY ',' ENCLOSED BY '\"'
                 LINES TERMINATED BY '\n'
                 IGNORE 1 LINES"
@@ -84,67 +103,71 @@ class SlevomatTransformation extends Component
 		}
 	}
 
-	protected function _transform()
+	protected function _transform($prefix)
 	{
-		$this->_initTransform();
+		$this->_initTransform($prefix);
 
-		$this->_processCreateProductSnapshots();
+		$this->_processCreateProductSnapshots($prefix);
 
-		$this->_processAssignDealCategories();
+		$this->_processAssignDealCategories($prefix);
 
-		$this->_processAssignDealLimitsToProducts();
+		$this->_processAssignDealLimitsToProducts($prefix);
 
 		// Days since last orders snapshots
-		$this->_processDaysSinceLastOrderSnapshots();
+		$this->_processDaysSinceLastOrderSnapshots($prefix);
 
 		// Transform sales targets
-		$this->_processTransformSalesTargets();
+		$this->_processTransformSalesTargets($prefix);
 
 		// Assigning salesman to products
-		$this->_processAssignSalesmenToProducts();
+		$this->_processAssignSalesmenToProducts($prefix);
 
-		$this->_processUpdateCancelledVouchers();
+		// Update cancelled vouchers
+		$this->_processUpdateCancelledVouchers($prefix);
 
 		// Salesman Bonuses
-		$this->_processComputeSalaries();
-
-		// Newsletters to Orders
-		$this->_processNewslettersToOrders();
+		$this->_processComputeSalaries($prefix);
 
 		// Manager and ManagerTargets
-		$this->_processAssignManagers();
+		$this->_processAssignManagers($prefix);
+
+		// Assign city to orders
+		$this->_processCityTargets($prefix);
 	}
 
-	protected function _export($destinationBucket)
+	protected function _export($destinationBucket, $prefix)
 	{
-		$dbConfig = $this->_db->getConfiguration();
-		//var_dump($dbConfig); die;
+		$dbConfig = $this->_db->getParams();
 
 		if (!$this->_storageApi->bucketExists($destinationBucket)) {
-			$destBucketArr = explode('.', $destinationBucket);
-			$this->_storageApi->createBucket($destBucketArr[1], $destBucketArr[0], 'Remote Transformation Output');
+			throw new \Exception("Destination bucket not found.");
 		}
 		// get tables from Slevomat_out
-		$outTables = $this->_db->query("SHOW TABLES");
+		$outTables = $this->_db->getSchemaManager()->listTableNames();
+
 		foreach($outTables as $t) {
 
-			$outTableName = array_shift($t);
-			$outFilename = tempnam(ROOT_PATH . "/tmp", $outTableName) . ".csv";
-			$errorFilename = tempnam(ROOT_PATH . "/tmp", $outTableName) . ".csv.error";
+			if (!strstr($t, $prefix)) {
+				continue;
+			}
 
-			$select = "SELECT * FROM `{$outTableName}`;";
+			$this->_log->info("Exporting table " . $t);
 
-			$command = 'mysql -u ' . $dbConfig->user
-				. ' -p' . $dbConfig->password
-				. ' -h ' . $dbConfig->host
-				. ' '. $dbConfig->dbname . ' -B -e ' . escapeshellarg((string) $select)
+			$outTableName = str_replace($prefix . '.', '', $t);
+			$outFilename = tempnam("/tmp", $outTableName) . ".csv";
+			$errorFilename = tempnam("/tmp", $outTableName) . ".csv.error";
+
+			$select = "SELECT * FROM `{$t}`;";
+
+			$command = 'mysql -u ' . $dbConfig['user']
+				. ' -p' . $dbConfig['password']
+				. ' -h ' . $dbConfig['host']
+				. ' '. $dbConfig['dbname'] . ' -B -e ' . escapeshellarg((string) $select)
 				. ' --quick 2> ' . $errorFilename;
 
-			$conversionPath = ROOT_PATH . "/library/Keboola/Db/CsvExport/conversion.php";
+			$conversionPath = ROOT_PATH . "src/Syrup/SlevomatBundle/Scripts/conversion.php";
 			$command .= ' | php ' . $conversionPath . " csv";
 			$command .= ' > ' . $outFilename;
-
-			//$log->log("{$logMessageIn}: PROGRESS", \Zend_Log::INFO, array_merge($logDataIn, array("progress" => "Ready to export data from Transformation DB")));
 
 			$result = exec($command);
 
@@ -153,84 +176,160 @@ class SlevomatTransformation extends Component
 				if ($error == '') {
 					$error = trim(file_get_contents($errorFilename));
 				}
-				throw new Exception("MySQL export error: " . $error);
+				throw new \Exception("MySQL export error: " . $error);
 			}
-			//$log->log("{$logMessageIn}: PROGRESS", \Zend_Log::INFO, array_merge($logDataIn, array("progress" => "Data from Transformation DB exported")));
-			//$log->log("{$logMessageIn}: PROGRESS", \Zend_Log::INFO, array_merge($logDataIn, array("progress" => "Uploading data to Storage API")));
+
+			$this->_log->info("Writing table " . $t . " to Storage API");
 
 			if (!$this->_storageApi->tableExists($destinationBucket . '.' . $outTableName)) {
 				$this->_storageApi->createTable($destinationBucket, $outTableName, $outFilename);
 			} else {
 				$this->_storageApi->writeTable($destinationBucket . '.' . $outTableName, $outFilename);
 			}
+
+			$this->_log->info("Table " . $t . " exported to Storage API");
 		}
 	}
 
-	protected function _initTransform()
+	protected function _initTransform($prefix)
 	{
 		$this->_db->query("
-			ALTER TABLE `out.users` ADD INDEX `id` (`id`(11));
+			ALTER TABLE `{$prefix}.users` ADD INDEX `id` (`id`(11));
 		");
 		$this->_db->query("
-			ALTER TABLE `out.carts`
+			ALTER TABLE `{$prefix}.carts`
 			ADD INDEX `id` (`id`(11)),
 			ADD INDEX `user` (`user`(11));
 		");
+
 		$this->_db->query("
-			ALTER TABLE `out.marginLimits`
+			ALTER TABLE `{$prefix}.cityTargets`
+			ADD PRIMARY KEY `id` (`id`(11)),
+			ADD INDEX `city` (`city`(11));
+		");
+
+		$this->_db->query("
+			ALTER TABLE `{$prefix}.daysSinceLastOrderSnapshot`
+			CHANGE `id` `id` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;
+		");
+
+		$this->_db->query("
+			ALTER TABLE `{$prefix}.dealLimits`
+			CHANGE `id` `id` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST,
+			CHANGE `name` `name` text COLLATE 'utf8_general_ci' NOT NULL AFTER `id`,
+			CHANGE `namesort` `namesort` int unsigned NOT NULL AFTER `name`,
+			CHANGE `limit` `limit` int unsigned NOT NULL AFTER `namesort`,
+			CHANGE `limitMinimum` `limitMinimum` int unsigned NOT NULL AFTER `limit`,
+			CHANGE `limitWarning` `limitWarning` int unsigned NOT NULL AFTER `limitMinimum`;
+		");
+
+		$this->_db->query("
+			ALTER TABLE `{$prefix}.marginLimits`
 			ADD INDEX `id` (`id`(11)),
 			ADD INDEX `salesman` (`salesman`(11));
 		");
 		$this->_db->query("
-			ALTER TABLE `out.newsletters`
+			ALTER TABLE `{$prefix}.newsletters`
 			ADD INDEX 	`deleted` (`deleted`(11));
 		");
 		$this->_db->query("
-			ALTER TABLE `out.orders`
-			ADD INDEX `id` (`id`(11)),
-			ADD INDEX `user` (`user`(11)),
-			ADD INDEX `product` (`product`(11)),
-			ADD INDEX `variant` (`variant`(11)),
-			ADD INDEX `dateTime` (`dateTime`(11)),
-			ADD INDEX `user_id` (`user`(11),`id`(11)),
-			ADD INDEX `id_user` (`id`(11),`user`(11)),
+			ALTER TABLE `{$prefix}.orders`
+			CHANGE `id` `id` int unsigned NOT NULL AUTO_INCREMENT FIRST,
+			CHANGE `dateTime` `dateTime` datetime NOT NULL AFTER `id`,
+			CHANGE `paymentTime` `paymentTime` datetime NULL AFTER `dateTime`,
+			CHANGE `totalPrice` `totalPrice` decimal(16,2) NOT NULL AFTER `amount`,
+			CHANGE `commission` `commission` decimal(16,2) NOT NULL AFTER `paidPrice`,
+			CHANGE `cart` `cart` int unsigned NULL AFTER `shippingType`,
+			CHANGE `product` `product` int unsigned NOT NULL AFTER `cart`,
+			CHANGE `user` `user` int unsigned NULL AFTER `product`,
+			CHANGE `variant` `variant` int unsigned NULL AFTER `user`,
+			CHANGE `cancelled` `cancelled` varchar(255) COLLATE 'utf8_general_ci' NULL AFTER `paid`,
+			CHANGE `cancelledVoucher` `cancelledVoucher` varchar(255) COLLATE 'utf8_general_ci' NULL AFTER `city`,
+			ADD INDEX `user` (`user`),
+			ADD INDEX `product` (`product`),
+			ADD INDEX `variant` (`variant`),
+			ADD INDEX `dateTime` (`dateTime`),
+			ADD INDEX `user_id` (`user`,`id`),
+			ADD INDEX `id_user` (`id`,`user`),
 			ADD INDEX `paid` (`paid`(11)),
-			ADD INDEX `cart` (`cart`(11));
+			ADD INDEX `cart` (`cart`),
+			ADD INDEX `cancelled` (`cancelled`),
+			ADD INDEX `cancelledVoucher` (`cancelledVoucher`);
 		");
 		$this->_db->query("
-			ALTER TABLE `out.products`
-			ADD INDEX `id` (`id`(11)),
-			ADD INDEX `partner` (`partner`(11));
+			ALTER TABLE `{$prefix}.products`
+			CHANGE `id` `id` int unsigned NOT NULL PRIMARY KEY FIRST,
+			CHANGE `start` `start` datetime NOT NULL AFTER `category`,
+			CHANGE `end` `end` datetime NOT NULL AFTER `start`,
+			ADD INDEX `partner` (`partner`(11)),
+			ADD INDEX `salesmanId` (`salesmanId`(11)),
+			ADD INDEX `dealCategory` (`dealCategory`(11));
 		");
+
 		$this->_db->query("
-			ALTER TABLE `out.ratings`
-			ADD INDEX `voucher` (`voucher`(11)),
-			ADD INDEX `user` (`user`(11));
-		");
-		$this->_db->query("
-			ALTER TABLE `out.variants`
+			ALTER TABLE `{$prefix}.variants`
 			ADD INDEX `id` (`id`(11)),
 			ADD INDEX `product` (`product`(11));
 		");
+
 		$this->_db->query("
-			ALTER TABLE `out.user_ratings`
-			ADD INDEX `partner` (`partner`(11)),
-			ADD INDEX `product` (`product`(11)),
-			ADD INDEX `voucher` (`voucher`(11)),
-			ADD INDEX `user` (`user`(11));
+			ALTER TABLE `{$prefix}.vouchers`
+			CHANGE `id` `id` int unsigned NOT NULL FIRST,
+			CHANGE `order` `order` int unsigned NOT NULL AFTER `id`,
+			ADD INDEX `id` (`id`),
+			ADD INDEX `order` (`order`);
 		");
+
 		$this->_db->query("
-			ALTER TABLE `out.vouchers`
-			ADD INDEX `id` (`id`(11)),
-			ADD INDEX `order` (`order`(11));
-		");
-		$this->_db->query("
-			ALTER TABLE `out.daysSinceLastOrderSnapshot`
+			ALTER TABLE `{$prefix}.partners`
 			ADD INDEX `id` (`id`(11));
 		");
+
 		$this->_db->query("
-			ALTER TABLE `out.partners`
-			ADD INDEX `id` (`id`(11));
+			ALTER TABLE `{$prefix}.managers`
+			CHANGE `id` `id` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;
+		");
+
+		$this->_db->query("
+			ALTER TABLE `{$prefix}.marginLimits`
+			CHANGE `id` `id` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;
+		");
+
+		$this->_db->query("
+			ALTER TABLE `{$prefix}.salesTargets`
+			CHANGE `id` `id` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST,
+			CHANGE `date` `date` date NOT NULL AFTER `value`;
+		");
+
+		$this->_db->query("
+			ALTER TABLE `{$prefix}.salesman`
+			CHANGE `id` `id` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;
+		");
+
+		$this->_db->query("
+			ALTER TABLE `{$prefix}.salesmanBonus`
+			CHANGE `id` `id` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST,
+			CHANGE `salesman` `salesman` int unsigned NOT NULL AFTER `id`,
+			CHANGE `date` `date` date NOT NULL AFTER `salesman`,
+			CHANGE `salarymonth` `salarymonth` date NOT NULL AFTER `date`,
+			CHANGE `h1` `h1` decimal(16,2) NOT NULL DEFAULT '0' AFTER `salarymonth`,
+			CHANGE `h1count` `h1count` int unsigned NOT NULL DEFAULT '0' AFTER `h1`,
+			CHANGE `h2` `h2` decimal(16,2) NOT NULL DEFAULT '0' AFTER `h1count`,
+			CHANGE `h3` `h3` decimal(16,2) NOT NULL DEFAULT '0' AFTER `h2`,
+			CHANGE `h4` `h4` decimal(16,2) NOT NULL DEFAULT '0' AFTER `h3`,
+			CHANGE `h5` `h5` decimal(16,2) NOT NULL DEFAULT '0' AFTER `h4`,
+			CHANGE `h6` `h6` decimal(16,2) NOT NULL DEFAULT '0' AFTER `h5`,
+			CHANGE `total` `total` decimal(16,2) NOT NULL DEFAULT '0' AFTER `h6`,
+			CHANGE `citiesMargin` `citiesMargin` decimal(16,2) NOT NULL DEFAULT '0' AFTER `total`,
+			CHANGE `tabsMargin` `tabsMargin` decimal(16,2) NOT NULL DEFAULT '0' AFTER `citiesMargin`,
+			CHANGE `target` `target` decimal(4,3) NOT NULL DEFAULT '0' AFTER `tabsMargin`,
+			ADD INDEX `salesman` (`salesman`);
+		");
+
+		$this->_db->query("
+			ALTER TABLE `{$prefix}.targetFulfillments`
+			CHANGE `id` `id` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST,
+			CHANGE `day` `day` date NOT NULL AFTER `id`;
 		");
 	}
 
@@ -239,14 +338,13 @@ class SlevomatTransformation extends Component
 	 * create product snapshots
 	 * @return bool
 	 */
-	protected function _processCreateProductSnapshots()
+	protected function _processCreateProductSnapshots($prefix)
 	{
 		$db = $this->_db;
 		// calculate additional data
-		print "Creating products-date snapshots... ";
-		//NDebugger::timer("productsSnapshots");
-		$db->query("DROP TABLE IF EXISTS `out.productsSnapshots`;");
-		$db->query("CREATE TABLE `out.productsSnapshots` (
+
+		$db->query("DROP TABLE IF EXISTS `{$prefix}.productsSnapshots`;");
+		$db->query("CREATE TABLE `{$prefix}.productsSnapshots` (
                 `id` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
                 `date` date NOT NULL,
                 `product` int unsigned NOT NULL,
@@ -254,7 +352,7 @@ class SlevomatTransformation extends Component
                 `commission` decimal(16,2) NOT NULL DEFAULT '0'
 			) COMMENT='' ENGINE='InnoDB' COLLATE 'utf8_general_ci';");
 
-		$products = $db->fetchAssoc("SELECT id, start, end, price, commission FROM products");
+		$products = $db->fetchAll("SELECT id, start, end, price, commission FROM `{$prefix}.products`");
 
 		foreach($products as $product) {
 			$dates = array();
@@ -268,7 +366,7 @@ class SlevomatTransformation extends Component
 				$dates[] = $currentDate;
 			}
 			// Insert into DB
-			$query = "INSERT INTO `out.productsSnapshots` (`date`, product, price, commission) VALUES ";
+			$query = "INSERT INTO `{$prefix}.productsSnapshots` (`date`, product, price, commission) VALUES ";
 			$queryArr = array();
 			foreach ($dates as $date) {
 				$queryArr[] = "('{$date}', {$product["id"]}, '{$product["price"]}', '{$product["commission"]}')";
@@ -276,8 +374,7 @@ class SlevomatTransformation extends Component
 			$db->query($query . join(", ", $queryArr));
 
 		}
-		$this->log->info("Slevomat: Created products-date snapshots.");
-		print "OK\n";
+		$this->_log->info("Slevomat: Created products-date snapshots.");
 		return true;
 	}
 
@@ -288,82 +385,81 @@ class SlevomatTransformation extends Component
 	 * @param $db
 	 * @return bool
 	 */
-	protected function _processAssignDealCategories() {
+	protected function _processAssignDealCategories($prefix) {
 		$db = $this->_db;
-		print "Computing deal categories... ";
-		//NDebugger::timer("productsDealCategories");
-		$products = $db->fetchAll("SELECT id, cities FROM products");
+
+		$products = $db->fetchAll("SELECT id, cities FROM `{$prefix}.products`");
 		foreach ($products as $product) {
 			if ($product["cities"] == "Praha") {
-				$db->query("UPDATE `out.products` SET dealCategory = 'Praha', dealCategorySort = 1 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Praha', dealCategorySort = 1 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if ($product["cities"] == "Praha Extra") {
-				$db->query("UPDATE `out.products` SET dealCategory = 'Praha Extra', dealCategorySort = 2 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Praha Extra', dealCategorySort = 2 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if ($product["cities"] == "Brno") {
-				$db->query("UPDATE `out.products` SET dealCategory = 'Brno', dealCategorySort = 3 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Brno', dealCategorySort = 3 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if ($product["cities"] == "Ostrava") {
-				$db->query("UPDATE `out.products` SET dealCategory = 'Ostrava', dealCategorySort = 4 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Ostrava', dealCategorySort = 4 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if ($product["cities"] == "Olomouc a Haná") {
-				$db->query("UPDATE `out.products` SET dealCategory = 'Olomouc a Haná', dealCategorySort = 5 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Olomouc a Haná', dealCategorySort = 5 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if ($product["cities"] == "HK a Pardubice") {
-				$db->query("UPDATE `out.products` SET dealCategory = 'HK a Pardubice', dealCategorySort = 6 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'HK a Pardubice', dealCategorySort = 6 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if ($product["cities"] == "Zlín a okolí") {
-				$db->query("UPDATE `out.products` SET dealCategory = 'Zlín a okolí', dealCategorySort = 7 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Zlín a okolí', dealCategorySort = 7 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if ($product["cities"] == "Plzeň") {
-				$db->query("UPDATE `out.products` SET dealCategory = 'Plzeň', dealCategorySort = 8 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Plzeň', dealCategorySort = 8 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if ($product["cities"] == "Liberec") {
-				$db->query("UPDATE `out.products` SET dealCategory = 'Liberec', dealCategorySort = 9 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Liberec', dealCategorySort = 9 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if ($product["cities"] == "Karlovy Vary") {
-				$db->query("UPDATE `out.products` SET dealCategory = 'Karlovy Vary', dealCategorySort = 10 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Karlovy Vary', dealCategorySort = 10 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if ($product["cities"] == "České Budějovice") {
-				$db->query("UPDATE `out.products` SET dealCategory = 'České Budějovice', dealCategorySort = 11 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'České Budějovice', dealCategorySort = 11 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if ($product["cities"] == "Ústí n. L. a Teplice") {
-				$db->query("UPDATE `out.products` SET dealCategory = 'Ústí n. L. a Teplice', dealCategorySort = 12 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Ústí n. L. a Teplice', dealCategorySort = 12 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if ($product["cities"] == "Jihlava a Vysočina") {
-				$db->query("UPDATE `out.products` SET dealCategory = 'Jihlava a Vysočina', dealCategorySort = 13 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Jihlava a Vysočina', dealCategorySort = 13 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if (strpos($product["cities"], "Móda") !== false) {
-				$db->query("UPDATE `out.products` SET dealCategory = 'Móda', dealCategorySort = 14 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Móda', dealCategorySort = 14 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if (strpos($product["cities"], "Cestování") !== false) {
-				$db->query("UPDATE `out.products` SET dealCategory = 'Cestování', dealCategorySort = 15 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Cestování', dealCategorySort = 15 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if (strpos($product["cities"], "Zboží") !== false) {
-				$db->query("UPDATE `out.products` SET dealCategory = 'Zboží', dealCategorySort = 16 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Zboží', dealCategorySort = 16 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if (strpos($product["cities"], "Víno") !== false) {
-				$db->query("UPDATE `out.products` SET dealCategory = 'Víno', dealCategorySort = 17 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Víno', dealCategorySort = 17 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if (strpos($product["cities"], "Praha") !== false || strpos($product["cities"], "Praha Extra") !== false) {
-				$db->query("UPDATE `out.products` SET dealCategory = 'Pha', dealCategorySort = 18 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Pha', dealCategorySort = 18 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if (strpos($product["cities"], "Brno") !== false
@@ -371,7 +467,7 @@ class SlevomatTransformation extends Component
 				|| strpos($product["cities"], "Plzeň") !== false
 			)
 			{
-				$db->query("UPDATE `out.products` SET dealCategory = 'R1', dealCategorySort = 19 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'R1', dealCategorySort = 19 WHERE id = {$product["id"]}");
 				continue;
 			}
 			if (strpos($product["cities"], "Olomouc a Haná") !== false
@@ -384,13 +480,13 @@ class SlevomatTransformation extends Component
 				|| strpos($product["cities"], "Jihlava a Vysočina") !== false
 			)
 			{
-				$db->query("UPDATE `out.products` SET dealCategory = 'R2', dealCategorySort = 20 WHERE id = {$product["id"]}");
+				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'R2', dealCategorySort = 20 WHERE id = {$product["id"]}");
 				continue;
 			}
-			$db->query("UPDATE `out.products` SET dealCategory = 'Other', dealCategorySort = 21 WHERE id = {$product["id"]}");
+			$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Other', dealCategorySort = 21 WHERE id = {$product["id"]}");
 		}
-		$this->log->info("Slevomat: Assigned deal categories.");
-		print "OK\n";
+		$this->_log->info("Slevomat: Assigned deal categories.");
+
 		return true;
 	}
 
@@ -401,24 +497,29 @@ class SlevomatTransformation extends Component
 	 * @param $db
 	 * @return bool
 	 */
-	protected function _processAssignDealLimitsToProducts() {
-		print "Assigning deal limits to products... ";
-		//NDebugger::timer("productsDealLimits");
-
+	protected function _processAssignDealLimitsToProducts($prefix) {
 		$db = $this->_db;
 
-		$db->query("TRUNCATE productsDealLimits;");
-		$limits = $db->fetchAssoc("SELECT id, name, search FROM `out.dealLimits` ORDER BY sort");
+		$db->query("DROP TABLE IF EXISTS `{$prefix}.productsDealLimits`;");
+		$db->query("
+			CREATE TABLE `{$prefix}.productsDealLimits` (
+			  `product` int(10) unsigned NOT NULL,
+			  `dealLimit` int(10) unsigned NOT NULL,
+			  PRIMARY KEY (`product`,`dealLimit`),
+			  KEY `dealLimit` (`dealLimit`)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+		");
+		$limits = $db->fetchAll("SELECT id, `name` FROM `{$prefix}.dealLimits` ORDER BY namesort");
 		foreach($limits as $limit) {
 			$db->query("
-				INSERT INTO `out.productsDealLimits`
-				SELECT products.id, '{$limit["id"]}' FROM `out.products` products
-				LEFT JOIN `out.productsDealLimits` ON products.id = `out.productsDealLimits`.product
-				WHERE `out.productsDealLimits`.product IS NULL AND dealCategory = '{$limit["search"]}'
+				INSERT INTO `{$prefix}.productsDealLimits`
+				SELECT products.id, '{$limit["id"]}' FROM `{$prefix}.products` products
+				LEFT JOIN `{$prefix}.productsDealLimits` ON products.id = `{$prefix}.productsDealLimits`.product
+				WHERE `{$prefix}.productsDealLimits`.product IS NULL AND dealCategory = '{$limit["name"]}'
 			");
 		}
-		$this->log->info("Slevomat: Assigned deal limits.");
-		print "OK\n";
+		$this->_log->info("Slevomat: Assigned deal limits.");
+
 		return true;
 	}
 
@@ -429,12 +530,7 @@ class SlevomatTransformation extends Component
 	 * @param $db
 	 * @return bool
 	 */
-	protected function _processDaysSinceLastOrderSnapshots() {
-		print "Computing days since last order snapshots... ";
-		//NDebugger::timer("daysSinceLastOrderSnapshots");
-		// DO NOT TRUNCATE, heavy processing when updating all records
-		// $db->query("TRUNCATE daysSinceLastOrderSnapshots;");
-
+	protected function _processDaysSinceLastOrderSnapshots($prefix) {
 		$db = $this->_db;
 
 		$dates = array();
@@ -446,8 +542,8 @@ class SlevomatTransformation extends Component
 			$currentDate = date("Y-m-d", strtotime("+1 day", strtotime($currentDate)));
 			$dates[] = $currentDate;
 		}
-		$insertedDates = $db->fetchAll("SELECT DISTINCT snapshotDate FROM `out.daysSinceLastOrderSnapshot`");
-		$datesToInsert = array_diff ($dates, (array_map(function($array) {return $array["snapshotDate"];}, $insertedDates)));
+		$insertedDates = $db->fetchAll("SELECT DISTINCT `date` FROM `{$prefix}.daysSinceLastOrderSnapshot`");
+		$datesToInsert = array_diff ($dates, (array_map(function($array) {return $array["date"];}, $insertedDates)));
 
 		foreach($datesToInsert as $date) {
 
@@ -464,8 +560,8 @@ class SlevomatTransformation extends Component
 					ELSE '0-3 měsíce'
 				END
 				 AS daysSinceLastOrderCat
-				FROM `out.users` t
-				LEFT JOIN `out.orders` o ON o.user = t.id AND o.dateTime < '{$date}'
+				FROM `{$prefix}.users` t
+				LEFT JOIN `{$prefix}.orders` o ON o.user = t.id AND o.dateTime < '{$date}'
 				WHERE t.regtime < '{$date}'
 				GROUP BY t.id
 				) tmp
@@ -485,7 +581,7 @@ class SlevomatTransformation extends Component
 			}
 
 			$db->query("
-				INSERT INTO `out.daysSinceLastOrderSnapshot` (snapshotDate, category, categorySort, `count`)
+				INSERT INTO `{$prefix}.daysSinceLastOrderSnapshot` (`date`, `category`, `categorySort`, `numberofusers`)
 				VALUES
 				('{$date}', '--ještě neobjednal--', 4, '{$data['--ještě neobjednal--']}'),
 				('{$date}', '> 12 měsíců', 3, '{$data['> 12 měsíců']}'),
@@ -493,11 +589,11 @@ class SlevomatTransformation extends Component
 				('{$date}', '3-6 měsíců', 1, '{$data['3-6 měsíců']}'),
 				('{$date}', '0-3 měsíce', 0, '{$data['0-3 měsíce']})');");
 
-			$this->log->log("Slevomat: Computed daysSinceLastOrder snapshot for {$date}.");
+			$this->_log->info("Slevomat: Computed daysSinceLastOrder snapshot for {$date}.");
 
 		}
-		$this->log->info("Slevomat: Computed daysSinceLastOrder snapshots.");
-		print "OK\n";
+		$this->_log->info("Slevomat: Computed daysSinceLastOrder snapshots.");
+
 		return true;
 	}
 
@@ -508,25 +604,23 @@ class SlevomatTransformation extends Component
 	 * @param $db
 	 * @return bool
 	 */
-	protected function _processAssignSalesmenToProducts()
+	protected function _processAssignSalesmenToProducts($prefix)
 	{
 		$db = $this->_db;
 
-		print "Assigning salesman to products... ";
-//		NDebugger::timer("salesmanToProducts");
-
-		$salesmen = $db->fetchAll("SELECT id, name FROM `out.salesman` WHERE name != '--empty--'");
-		$emptySalesman = $db->fetchRow("SELECT id, name FROM `out.salesman` WHERE name = '--empty--'");
+		$salesmen = $db->fetchAll("SELECT id, name FROM `{$prefix}.salesman` WHERE name != '--empty--'");
+		$emptySalesman = $db->fetchArray("SELECT id, name FROM `{$prefix}.salesman` WHERE name = '--empty--'");
 
 		$salesmanNames = array();
 		foreach ($salesmen as $salesman) {
-			$db->query("UPDATE `out.products` SET salesmanId = {$salesman["id"]} WHERE salesman = '{$salesman["name"]}'");
+			$db->query("UPDATE `{$prefix}.products` SET salesmanId = " . $salesman['id'] . " WHERE salesman = '{$salesman["name"]}'");
 			$salesmanNames[] = "'{$salesman["name"]}'";
 		}
-		$db->query("UPDATE `out.products` SET salesmanId = {$emptySalesman["id"]} WHERE salesman NOT IN (" . join(",", $salesmanNames) . ")");
 
-		$this->log->info("Slevomat: Assigned salesman to products.");
-		print "OK\n";
+		$db->query("UPDATE `{$prefix}.products` SET salesmanId = {$emptySalesman[0]} WHERE salesman NOT IN (" . join(",", $salesmanNames) . ")");
+
+		$this->_log->info("Slevomat: Assigned salesman to products.");
+
 		return true;
 
 	}
@@ -539,36 +633,38 @@ class SlevomatTransformation extends Component
 	 * @param $db
 	 * @return bool
 	 */
-	protected function _processComputeSalaries()
+	protected function _processComputeSalaries($prefix)
 	{
-		$db = $this->_db;
 		// Computing salesman salaries
-		print "Computing salesmen salaries... ";
-		//NDebugger::timer("salesmanSalaries");
+		$db = $this->_db;
 
-		// Truncate table salesmanBonus
-		$db->query("TRUNCATE TABLE salesmanBonus");
+		// Truncate table salesmanBonus - if truncated, it will be computed from scratch
+		//$db->query("TRUNCATE TABLE `{$prefix}.salesmanBonus`");
 
 		// All missing dates
-		$lastDate = $db->fetchColumn("SELECT IFNULL(MAX(`date`), '2012-04-01') FROM `out.salesmanBonus`;");
+		$lastDate = $db->fetchColumn("SELECT IFNULL(MAX(`date`), '2012-04-01') FROM `{$prefix}.salesmanBonus`;");
 		$dateTo = date("Y-m-d");
 		$currentDate = $lastDate;
 		if ($lastDate != $dateTo) {
 			while($currentDate <= $dateTo) {
 				// H1, H2, H3, H4, H6
-				$this->_computeSalaries($currentDate);
-				// H5
-				$this->_computeH5($currentDate);
+				$this->_computeSalaries($currentDate, $prefix);
 
 				$currentDate = date("Y-m-d", strtotime("+1 day", strtotime($currentDate)));
 			}
 		}
 
-		// Targets
-		$this->_computeTargetFulfillments($db);
+		// H5 - compute from start
+		$currentDate = date("Y-m-d", strtotime("2012-04-01"));
+		while($currentDate <= $dateTo) {
+			$this->_computeH5($currentDate, $prefix);
+			$currentDate = date("Y-m-d", strtotime("+1 day", strtotime($currentDate)));
+		}
 
-		$this->log->info("Slevomat: Computed salesmen salaries.");
-		print "OK\n";
+		// Targets
+		$this->_computeTargetFulfillments($prefix);
+
+		$this->_log->info("Slevomat: Computed salesmen salaries.");
 
 		return true;
 	}
@@ -580,7 +676,7 @@ class SlevomatTransformation extends Component
 	 * @param Zend_Db_Adapter_Abstract $db
 	 * @param $currentDate string
 	 */
-	private function _computeSalaries($currentDate)
+	private function _computeSalaries($currentDate, $prefix)
 	{
 		$db = $this->_db;
 
@@ -589,7 +685,12 @@ class SlevomatTransformation extends Component
 			$salaryMonths[] = date("Y-m", strtotime("-1 month", strtotime($currentDate)));
 		}
 
-		$salesmen = $db->fetchAll("SELECT id, name, region FROM `out.salesman` WHERE name != '--empty--'");
+		$salesmen = $db->fetchAll("SELECT id, name, region FROM `{$prefix}.salesman` WHERE name != '--empty--'");
+
+		$phoniesRes = $db->fetchAll("SELECT salesman FROM `{$prefix}.phones`");
+		$phonies = array_map(function($item) {
+			return $item['salesman'];
+		}, $phoniesRes);
 
 		foreach ($salesmen as $salesman) {
 
@@ -620,11 +721,11 @@ class SlevomatTransformation extends Component
 								SUM(orders.commission/1.20) / SUM(orders.totalPrice),
 								products.noShows,
 								orders.totalPrice
-							FROM `out.orders` orders
-							LEFT JOIN `out.products` products ON orders.product = products.id
-							LEFT JOIN `out.productsDealLimits` productsDealLimits ON products.id = productsDealLimits.product
-							LEFT JOIN `out.dealLimits` dealLimits ON productsDealLimits.dealLimit = dealLimits.id
-							WHERE `out.products`.salesmanId = {$salesman["id"]}
+							FROM `{$prefix}.orders` orders
+							LEFT JOIN `{$prefix}.products` products ON orders.product = products.id
+							LEFT JOIN `{$prefix}.productsDealLimits` productsDealLimits ON products.id = productsDealLimits.product
+							LEFT JOIN `{$prefix}.dealLimits` dealLimits ON productsDealLimits.dealLimit = dealLimits.id
+							WHERE products.salesmanId = {$salesman["id"]}
 								AND products.start >= '{$salaryMonth}-01'
 								AND products.start <= '{$salaryMonth}-31'
 								AND orders.dateTime <= '{$currentDate}'
@@ -651,10 +752,10 @@ class SlevomatTransformation extends Component
 								orders.totalPrice,
 								products.noShows,
 								dealLimits.limitMinimum
-							FROM `out.orders` orders
-							LEFT JOIN `out.products` products ON orders.product = products.id
-							LEFT JOIN `out.productsDealLimits` productsDealLimits ON productsDealLimits.product = products.id
-							LEFT JOIN `out.dealLimits` dealLimits ON productsDealLimits.dealLimit = dealLimits.id
+							FROM `{$prefix}.orders` orders
+							LEFT JOIN `{$prefix}.products` products ON orders.product = products.id
+							LEFT JOIN `{$prefix}.productsDealLimits` productsDealLimits ON productsDealLimits.product = products.id
+							LEFT JOIN `{$prefix}.dealLimits` dealLimits ON productsDealLimits.dealLimit = dealLimits.id
 							WHERE products.salesmanId = {$salesman["id"]}
 								AND products.start >= '{$salaryMonth}-01'
 								AND products.start <= '{$salaryMonth}-31'
@@ -682,10 +783,10 @@ class SlevomatTransformation extends Component
 								orders.totalPrice,
 								products.noShows,
 								dealLimits.limitMinimum
-							FROM `out.orders` orders
-							LEFT JOIN `out.products` products ON orders.product = products.id
-							LEFT JOIN `out.productsDealLimits` productsDealLimits ON productsDealLimits.product = products.id
-							LEFT JOIN `out.dealLimits` dealLimits ON productsDealLimits.dealLimit = dealLimits.id
+							FROM `{$prefix}.orders` orders
+							LEFT JOIN `{$prefix}.products` products ON orders.product = products.id
+							LEFT JOIN `{$prefix}.productsDealLimits` productsDealLimits ON productsDealLimits.product = products.id
+							LEFT JOIN `{$prefix}.dealLimits` dealLimits ON productsDealLimits.dealLimit = dealLimits.id
 							WHERE products.salesmanId = {$salesman["id"]}
 								AND products.start >= '{$salaryMonth}-01'
 								AND products.start <= '{$salaryMonth}-31'
@@ -709,7 +810,7 @@ class SlevomatTransformation extends Component
 				// H2 bonus
 				$tabbedProducts = $db->fetchColumn("
 					SELECT IF(SUM(orders.commission) IS NULL, 0, SUM(orders.commission)) / 1.2 AS grossMargin
-					FROM `out.orders` orders LEFT JOIN `out.products` products ON orders.product = products.id
+					FROM `{$prefix}.orders` orders LEFT JOIN `{$prefix}.products` products ON orders.product = products.id
 					WHERE products.salesmanId = {$salesman["id"]}
 						AND products.dealCategory IN ('Cestování', 'Zboží')
 						AND products.start >= '{$salaryMonth}-01'
@@ -721,7 +822,7 @@ class SlevomatTransformation extends Component
 					");
 				$normalProducts = $db->fetchColumn("
 					SELECT IF(SUM(orders.commission) IS NULL, 0, SUM(orders.commission)) / 1.2 AS grossMargin
-					FROM `out.orders` orders LEFT JOIN `out.products` products ON orders.product = products.id
+					FROM `{$prefix}.orders` orders LEFT JOIN `{$prefix}.products` products ON orders.product = products.id
 					WHERE products.salesmanId = {$salesman["id"]}
 						AND products.dealCategory NOT IN ('Cestování', 'Zboží')
 						AND products.start >= '{$salaryMonth}-01'
@@ -764,7 +865,7 @@ class SlevomatTransformation extends Component
 				}
 
 				// H3 bonus
-				$personalLimit = $db->fetchArray("SELECT marginLimit, bonus FROM `out.marginLimits` WHERE date = '{$salaryMonth}-01}' AND salesman = {$salesman["id"]}");
+				$personalLimit = $db->fetchArray("SELECT marginLimit, bonus FROM `{$prefix}.marginLimits` WHERE month = '{$salaryMonth}-01}' AND salesman = {$salesman["id"]}");
 
 				if ($personalLimit["marginLimit"] <= ($tabbedProducts + $normalProducts)) {
 					$bonuses["H3"] += $personalLimit["bonus"];
@@ -773,8 +874,6 @@ class SlevomatTransformation extends Component
 				}
 
 				// H4 bonus
-				$phonies = $db->fetchColumn("SELECT salesman FROM `out.phones`");
-
 				// No bonus for phonies :P
 				if (!in_array($salesman['name'], $phonies)) {
 					$bonuses["H4"] += 2000;
@@ -792,10 +891,10 @@ class SlevomatTransformation extends Component
 								SUM(orders.commission/1.20) / SUM(orders.totalPrice),
 								products.noShows,
 								orders.totalPrice
-							FROM `out.orders` orders
-							LEFT JOIN `out.products` products ON orders.product = products.id
-							LEFT JOIN `out.productsDealLimits` productsDealLimits ON products.id = productsDealLimits.product
-							LEFT JOIN `out.dealLimits` dealLimits ON productsDealLimits.dealLimit = dealLimits.id
+							FROM `{$prefix}.orders` orders
+							LEFT JOIN `{$prefix}.products` products ON orders.product = products.id
+							LEFT JOIN `{$prefix}.productsDealLimits` productsDealLimits ON products.id = productsDealLimits.product
+							LEFT JOIN `{$prefix}.dealLimits` dealLimits ON productsDealLimits.dealLimit = dealLimits.id
 							WHERE products.salesmanId = {$salesman["id"]}
 								AND products.start >= '{$salaryMonth}-01'
 								AND products.start <= '{$salaryMonth}-31'
@@ -820,13 +919,13 @@ class SlevomatTransformation extends Component
 				$bonuses["total"] = $bonuses["H1"] + $bonuses["H2"] + $bonuses["H3"] + $bonuses["H4"] + $bonuses["H6"];
 
 				// Update db
-				$row = $db->fetchArray("SELECT * FROM `out.salesmanBonus` WHERE salesman = {$salesman["id"]} AND `date` = '{$currentDate}' AND salaryDate = '{$salaryMonth}-01'");
+				$row = $db->fetchAssoc("SELECT * FROM `{$prefix}.salesmanBonus` WHERE salesman = {$salesman["id"]} AND `date` = '{$currentDate}' AND salarymonth = '{$salaryMonth}-01'");
 				if (!$row) {
 					$db->query("
-						INSERT INTO `out.salesmanBonus` SET
+						INSERT INTO `{$prefix}.salesmanBonus` SET
 							salesman = '{$salesman["id"]}',
 							`date` = '{$currentDate}',
-							salaryDate = '{$salaryMonth}-01',
+							salarymonth = '{$salaryMonth}-01',
 							h1 = {$bonuses["H1"]},
 							h1count = {$bonuses["H1count"]},
 							h2 = {$bonuses["H2"]},
@@ -841,7 +940,7 @@ class SlevomatTransformation extends Component
 						");
 				} else {
 					$db->query("
-						UPDATE `out.salesmanBonus` SET
+						UPDATE `{$prefix}.salesmanBonus` SET
 							h1 = {$bonuses["H1"]},
 							h1count = {$bonuses["H1count"]},
 							h2 = {$bonuses["H2"]},
@@ -862,27 +961,27 @@ class SlevomatTransformation extends Component
 	 *
 	 * @param Zend_Db_Adapter_Abstract $db
 	 */
-	protected function _computeH5($currentDate)
+	protected function _computeH5($currentDate, $prefix)
 	{
 		$db = $this->_db;
 
 		$salesmanBonuses = $db->fetchAll("
-			SELECT sb.id, sb.salesman, sb.date, sb.salaryDate, s.team, sb.citiesMargin + sb.tabsMargin AS salesmanCommission FROM `out.salesmanBonus` sb
-			LEFT JOIN salesman s ON (sb.salesman = s.id)
+			SELECT sb.id, sb.salesman, sb.date, sb.salarymonth, s.team, sb.citiesMargin + sb.tabsMargin AS salesmanCommission FROM `{$prefix}.salesmanBonus` sb
+			LEFT JOIN `{$prefix}.salesman` s ON (sb.salesman = s.id)
 			WHERE (sb.citiesMargin != 0 OR sb.tabsMargin != 0) AND `date` = '{$currentDate}' AND team != 1000
 		");
 
 		foreach ($salesmanBonuses as $salesmanBonusRow) {
 
-			$teamTarget = $db->fetchColumn("SELECT value FROM `out.teamTargets` WHERE `key` = 'Marze bez DPH' AND month = '" . $salesmanBonusRow['salaryDate'] . "' AND team='" . $salesmanBonusRow['team'] . "'");
-			$teamBonus = $db->fetchColumn("SELECT value FROM `out.teamTargets` WHERE `key` = 'Bonus' AND month = '" . $salesmanBonusRow['salaryDate'] . "' AND team='" . $salesmanBonusRow['team'] . "'");
+			$teamTarget = $db->fetchColumn("SELECT value FROM `{$prefix}.teamTargets` WHERE `key` = 'Marze bez DPH' AND month = '" . $salesmanBonusRow['salarymonth'] . "' AND team='" . $salesmanBonusRow['team'] . "'");
+			$teamBonus = $db->fetchColumn("SELECT value FROM `{$prefix}.teamTargets` WHERE `key` = 'Bonus' AND month = '" . $salesmanBonusRow['salarymonth'] . "' AND team='" . $salesmanBonusRow['team'] . "'");
 
 			$teamCommission = $db->fetchColumn("
 				SELECT SUM(m.teamMargin) AS teamCommission FROM (
-					SELECT MAX(sb.citiesMargin) + MAX(sb.tabsMargin) AS teamMargin FROM `out.salesmanBonus` sb
-					LEFT JOIN `out.salesman` s ON (sb.salesman = s.id)
+					SELECT MAX(sb.citiesMargin) + MAX(sb.tabsMargin) AS teamMargin FROM `{$prefix}.salesmanBonus` sb
+					LEFT JOIN `{$prefix}.salesman` s ON (sb.salesman = s.id)
 					WHERE s.team = '" .$salesmanBonusRow['team'] . "'
-					AND sb.salaryDate = '" . $salesmanBonusRow['salaryDate'] . "'
+					AND sb.salarymonth = '" . $salesmanBonusRow['salarymonth'] . "'
 					GROUP BY sb.salesman
 				) m
 			");
@@ -892,7 +991,7 @@ class SlevomatTransformation extends Component
 			if ($teamCommission >= $teamTarget) {
 				$bonus = $teamBonus * ($salesmanCommission / $teamCommission);
 				$db->query("
-					UPDATE `out.salesmanBonus`
+					UPDATE `{$prefix}.salesmanBonus`
 					SET h5 = " . $bonus . ",
 					total = total + " . $bonus . "
 					WHERE id='" . $salesmanBonusRow['id'] . "'
@@ -900,7 +999,7 @@ class SlevomatTransformation extends Component
 			} else if ($teamCommission >= ($teamTarget * 0.75) ) {
 				$bonus = $teamBonus * $salesmanCommission / $teamCommission * 0.5;
 				$db->query("
-					UPDATE `out.salesmanBonus`
+					UPDATE `{$prefix}.salesmanBonus`
 					SET h5 = " . $bonus . ",
 					total = total + " . $bonus . "
 					WHERE id='" . $salesmanBonusRow['id'] . "'
@@ -911,27 +1010,26 @@ class SlevomatTransformation extends Component
 
 	/**
 	 *
-	 * @param Zend_Db_Adapter_Abstract $db
 	 * @return boolean
 	 */
-	protected function _computeTargetFulfillments()
+	protected function _computeTargetFulfillments($prefix)
 	{
 		$db = $this->_db;
 
 		$db->query("
-			UPDATE `out.salesmanBonus` SET target = (
-				SELECT tf.value FROM `out.targetFulfillments` tf WHERE tf.id=DAY(salesmanBonus.date)
-			) WHERE MONTH(date)=MONTH(salaryDate)
+			UPDATE `{$prefix}.salesmanBonus` SET target = (
+				SELECT tf.value FROM `{$prefix}.targetFulfillments` tf WHERE tf.id=DAY(`{$prefix}.salesmanBonus`.date)
+			) WHERE MONTH(date)=MONTH(salarymonth)
 		");
 		$db->query("
-			UPDATE `out.salesmanBonus` SET target = (
-				SELECT tf.value FROM `out.targetFulfillments` tf WHERE tf.id=(DAY(salesmanBonus.date) + 31)
-			) WHERE MONTH(date)!=MONTH(salaryDate)
+			UPDATE `{$prefix}.salesmanBonus` SET target = (
+				SELECT tf.value FROM `{$prefix}.targetFulfillments` tf WHERE tf.id=(DAY(`{$prefix}.salesmanBonus`.date) + 31)
+			) WHERE MONTH(date)!=MONTH(salarymonth)
 		");
-		// if (date - salaryDate > 31 + 12) target = 100%
+		// if (date - salarymonth > 31 + 12) target = 100%
 		$db->query("
-			UPDATE `out.salesmanBonus` SET target = 1.00
-			WHERE MONTH(date)!=MONTH(salaryDate) AND DAY(date) > 12
+			UPDATE `{$prefix}.salesmanBonus` SET target = 1.00
+			WHERE MONTH(date)!=MONTH(salarymonth) AND DAY(date) > 12
 		");
 	}
 
@@ -944,38 +1042,35 @@ class SlevomatTransformation extends Component
 	 * @param $db
 	 * @return bool
 	 */
-	protected function _processTransformSalesTargets()
+	protected function _processTransformSalesTargets($prefix)
 	{
-		$db = $this->_db;
 		// Sales targets
-		print "Transforming sales targets... ";
-		//NDebugger::timer("salesTargets");
+		$db = $this->_db;
 
 		// Create all salesman
-		$db->query("TRUNCATE `out.salesman`;");
+		$db->query("TRUNCATE `{$prefix}.salesman`;");
 		$db->query("
-			INSERT INTO `out.salesman`
-			SELECT DISTINCT NULL, st.salesPerson, st.manager, st.region, IF (tm.id IS NULL, 1000, tm.id) AS team FROM `out.salesTargets` st
-			LEFT JOIN `out.salesman` s ON s.name = st.salesPerson
-			LEFT JOIN `out.teams` tm ON st.team = tm.name
+			INSERT INTO `{$prefix}.salesman`
+			SELECT DISTINCT NULL, st.salesPerson, st.manager, st.region, IF (tm.id IS NULL, 1000, tm.id) AS team FROM `{$prefix}.salesTargets` st
+			LEFT JOIN `{$prefix}.salesman` s ON s.name = st.salesPerson
+			LEFT JOIN `{$prefix}.teams` tm ON st.team = tm.name
 			WHERE s.id IS NULL;
 		");
-		$db->query("INSERT INTO `out.salesman` SET id = 1000, name = '--empty--', manager = '--empty--', region = '---', team = 1000;");
+		$db->query("INSERT INTO `{$prefix}.salesman` SET id = 1000, name = '--empty--', manager = '--empty--', region = '---', team = 1000;");
 
 		// Get the limits and insert into marginLimits
-		$db->query("TRUNCATE `out.marginLimits`;");
-		$salesmen = $db->fetchAll("SELECT id, name FROM `out.salesman` WHERE id != 1000");
+		$db->query("TRUNCATE `{$prefix}.marginLimits`;");
+		$salesmen = $db->fetchAll("SELECT id, name FROM `{$prefix}.salesman` WHERE id != 1000");
 		foreach ($salesmen as $salesman) {
-			$dates = $db->fetchAll("SELECT DISTINCT `date` FROM `out.salesTargets` WHERE salesPerson = '{$salesman["name"]}';");
+			$dates = $db->fetchAll("SELECT DISTINCT `date` FROM `{$prefix}.salesTargets` WHERE salesPerson = '{$salesman["name"]}';");
 			foreach ($dates as $date) {
-				$limit = $db->fetchColumn("SELECT value FROM `out.salesTargets` WHERE salesPerson = '{$salesman["name"]}' AND `date` = '{$date["date"]}' AND `key` = 'Marze bez DPH'");
-				$bonus = $db->fetchColumn("SELECT value FROM `out.salesTargets` WHERE salesPerson = '{$salesman["name"]}' AND `date` = '{$date["date"]}' AND `key` = 'Bonus'");
-				$db->query("INSERT INTO `out.marginLimits` SET salesman = '{$salesman["id"]}', `date` = '{$date["date"]}', marginLimit = '{$limit}', bonus = '{$bonus}'");
+				$limit = $db->fetchColumn("SELECT value FROM `{$prefix}.salesTargets` WHERE salesPerson = '{$salesman["name"]}' AND `date` = '{$date["date"]}' AND `key` = 'Marze bez DPH'");
+				$bonus = $db->fetchColumn("SELECT value FROM `{$prefix}.salesTargets` WHERE salesPerson = '{$salesman["name"]}' AND `date` = '{$date["date"]}' AND `key` = 'Bonus'");
+				$db->query("INSERT INTO `{$prefix}.marginLimits` SET salesman = '{$salesman["id"]}', `month` = '{$date["date"]}', marginLimit = '{$limit}', bonus = '{$bonus}'");
 			}
 		}
 
-		$this->log->info("Slevomat: Transformed sales targets.");
-		print "OK\n";
+		$this->_log->info("Slevomat: Transformed sales targets.");
 		return true;
 	}
 
@@ -987,92 +1082,75 @@ class SlevomatTransformation extends Component
 	 * @param $db
 	 * @return bool
 	 */
-	protected function _processUpdateCancelledVouchers()
+	protected function _processUpdateCancelledVouchers($prefix)
 	{
 		$db = $this->_db;
-
-		// Sales targets
-		print "Updating cancelled vouchers... ";
-//		NDebugger::timer("cancelledVouchers");
 
 		// Update all orders with cancelled vouchers
-		$db->query("UPDATE `out.orders` SET cancelledVoucher = 'Yes' WHERE id IN(SELECT DISTINCT `out.vouchers`.order FROM `out.vouchers` WHERE cancelled = 'Yes')");
+		$db->query("UPDATE `{$prefix}.orders` SET cancelledVoucher = 'Yes' WHERE id IN(SELECT DISTINCT `{$prefix}.vouchers`.order FROM `{$prefix}.vouchers` WHERE cancelled = 'Yes')");
 
-		$this->log->info("Slevomat: Updated cancelled vouhcers.");
-		print "OK\n";
+		$this->_log->info("Slevomat: Updated cancelled vouhcers.");
 		return true;
 	}
 
-	protected function _processNewslettersToOrders()
+	/**
+	 * @return bool
+	 * @deprecated
+	 */
+	protected function _processNewslettersToOrders($prefix)
 	{
 		$db = $this->_db;
-		print "Newsletters to orders correlation... ";
-//		NDebugger::timer("newslettersOrders");
 
 		// Update all orders where user is subscribed to some newsletter
-		$db->query("UPDATE `out.orders` SET newsletter = 1 WHERE `user` IN (SELECT DISTINCT `out.newsletters`.user FROM `out.newsletters` WHERE deleted = 'No')");
+		$db->query("UPDATE `{$prefix}.orders` SET newsletter = 1 WHERE `user` IN (SELECT DISTINCT `{$prefix}.newsletters`.user FROM `{$prefix}.newsletters` WHERE deleted = 'No')");
 
-		$this->log->info("Slevomat: Updated orders with newsletter flag.");
-		print "OK\n";
+		$this->_log->info("Slevomat: Updated orders with newsletter flag.");
 		return true;
 	}
 
-	protected function _processCityTargets()
+	protected function _processCityTargets($prefix)
 	{
 		$db = $this->_db;
-		print "Assign City Targets to Orders... ";
-//		NDebugger::timer("citytargets");
 
 		$db->query("
-			UPDATE `out.orders` o SET city = (
-				SELECT ct.id FROM `out.cityTargets` ct WHERE ct.city = o.city
+			UPDATE `{$prefix}.orders` o SET city = (
+				SELECT ct.id FROM `{$prefix}.cityTargets` ct WHERE ct.city = o.city
 			)
 		");
 
-		$this->log->info("Slevomat: Updated orders with newsletter flag.");
-		print "OK\n";
+		$this->_log->info("Slevomat: Assigned cities to orders.");
 		return true;
 	}
 
-	protected function _processAssignManagers()
+	protected function _processAssignManagers($prefix)
 	{
 		$db = $this->_db;
 
-		print "Creating managers table... ";
-//		NDebugger::timer("team");
-
-
-		$db->query("TRUNCATE `out.managers`");
+		$db->query("TRUNCATE `{$prefix}.managers`");
 		$db->query("
-			INSERT INTO `out.managers` (name)
-			SELECT DISTINCT manager FROM `out.salesman` WHERE manager != '--empty--'
+			INSERT INTO `{$prefix}.managers` (name)
+			SELECT DISTINCT manager FROM `{$prefix}.salesman` WHERE manager != '--empty--'
 		");
 		$db->query("
-			REPLACE INTO `out.managers`
+			REPLACE INTO `{$prefix}.managers`
 			SET id = 1000, name = '--empty--'
 		");
 
-
-		$this->log->info("Slevomat: Created teams tables.");
-		print "OK\n";
-
-		print "Assign Managers to Salesman and Targets... ";
-//		NDebugger::timer("managers");
+		$this->_log->info("Slevomat: Created teams tables.");
 
 		$db->query("
-			UPDATE `out.salesman` s SET manager = (
-				SELECT m.id FROM `out.managers` m WHERE m.name = s.manager
+			UPDATE `{$prefix}.salesman` s SET manager = (
+				SELECT m.id FROM `{$prefix}.managers` m WHERE m.name = s.manager
 			)
 		");
 
 		$db->query("
-			UPDATE `out.managerTargets` t SET manager = (
-				SELECT m.id FROM `out.managers` m WHERE m.name = t.manager
+			UPDATE `{$prefix}.managerTargets` t SET manager = (
+				SELECT m.id FROM `{$prefix}.managers` m WHERE m.name = t.manager
 			)
 		");
 
-		$this->log->info("Slevomat: Assigned managers to Salesman and ManagerTargets.");
-		print "OK\n";
+		$this->_log->info("Slevomat: Assigned managers to Salesman and ManagerTargets.");
 		return true;
 	}
 }
