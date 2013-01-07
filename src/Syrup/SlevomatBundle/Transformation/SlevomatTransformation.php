@@ -1144,13 +1144,13 @@ class SlevomatTransformation extends Component
 			)
 		");
 
-		$db->query("
-			UPDATE `{$prefix}.managerTargets` t SET manager = (
-				SELECT m.id FROM `{$prefix}.managers` m WHERE m.name = t.manager
-			)
-		");
+//		$db->query("
+//			UPDATE `{$prefix}.managerTargets` t SET manager = (
+//				SELECT m.id FROM `{$prefix}.managers` m WHERE m.name = t.manager
+//			)
+//		");
 
-		$this->_log->info("Slevomat: Assigned managers to Salesman and ManagerTargets.");
+		$this->_log->info("Slevomat: Assigned managers to Salesman.");
 		return true;
 	}
 }

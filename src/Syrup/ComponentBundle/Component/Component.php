@@ -28,14 +28,29 @@ class Component implements ComponentInterface
 	protected $_log;
 
 	/**
-	 * @var Connection $conn
+	 * @var Connection
 	 */
 	protected $_db;
 
+	/**
+	 * @var string
+	 */
 	protected $_name = 'componentName';
 
+	/**
+	 * @var string
+	 */
 	protected $_prefix = '';
 
+	/**
+	 * @var array
+	 */
+	protected $_results;
+
+	/**
+	 * @param \Keboola\StorageApi\Client $storageApi
+	 * @param \Monolog\Logger $log
+	 */
 	public function __construct(Client $storageApi, $log)
 	{
 		$this->_storageApi = $storageApi;
@@ -43,30 +58,33 @@ class Component implements ComponentInterface
 		Reader::$client = $this->_storageApi;
 	}
 
+	/**
+	 * @param Connection $db
+	 */
 	public function setConnection($db)
 	{
 		$this->_db = $db;
 	}
 
+	/**
+	 * @param null $params - parameters passed from API call
+	 */
 	public function run($params = null)
 	{
 		$config = $this->getConfig();
 
-		$result = $this->_process($config, $params);
+		// $result should be instance of Table or array of Table objects
+		$this->_process($config, $params);
 
-		if ($result) {
-			if (is_array($result)) {
-				foreach ($result as $table) {
-					$this->_saveTable($table);
-				}
-			} else {
-				$this->_saveTable($result);
+		if (!empty($this->_results)) {
+			foreach ($this->_results as $table) {
+				$this->_saveTable($table);
 			}
 		}
 	}
 
 	/**
-	 * Override this - get data from remote services
+	 * Override this - get data and process them
 	 */
 	protected function _process($config, $params)
 	{
@@ -80,6 +98,11 @@ class Component implements ComponentInterface
 		} else {
 			throw new \Exception("Result must be instance of Keboola\\StorageApi\\Table or array of these instances.");
 		}
+	}
+
+	public function getResults()
+	{
+		return $this->_results;
 	}
 
 	/**
