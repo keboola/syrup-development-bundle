@@ -21,8 +21,6 @@ use Symfony\Component\HttpFoundation\Request;
 
 define(ROOT_PATH, __DIR__.'/../');
 
-date_default_timezone_set('Europe/Prague');
-
 $loader = require_once __DIR__.'/../app/bootstrap.php.cache';
 require_once __DIR__.'/../app/AppKernel.php';
 
