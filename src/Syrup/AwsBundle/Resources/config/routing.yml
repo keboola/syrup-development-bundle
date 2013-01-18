@@ -1,3 +1,0 @@
-syrup_aws_homepage:
-    pattern:  /hello/{name}
-    defaults: { _controller: SyrupAwsBundle:Default:index }
