@@ -47,16 +47,54 @@ class SlevomatTransformation extends Component
 			}
 		}
 
+		if (isset($transformConfig['db'])) {
+			$dbParams = $transformConfig['db'];
+			$dbal = $this->_db->getDriver();
+
+			$this->_db = new \Doctrine\DBAL\Connection(array(
+				'driver'    => 'pdo_mysql',
+				'host'      => $dbParams['host'],
+				'dbname'    => $dbParams['dbname'],
+				'user'      => $dbParams['user'],
+				'password'  => $dbParams['password']
+			), $dbal);
+		}
+
 		if (!isset($transformConfig['import']) || $transformConfig['import'] == 1) {
 			$this->_log->info("Importing source - START");
 			$this->_import($tables);
 			$this->_log->info("Importing source - END");
+
+			$this->_log->info("Init tables - START");
+			$this->_initTransform($prefix);
+			$this->_log->info("Init tables - END");
 		}
 
 		if (!isset($transformConfig['transform']) || $transformConfig['transform'] == 1) {
+
+			if (isset($transformConfig['logging']) && $transformConfig['logging'] == 1) {
+				$filename = "/tmp/" . $this->_prefix . '-' . $this->_name . '-queries-' . md5(microtime()) . ".sql";
+				$fh = fopen($filename, 'w+');
+
+				$logger = new \Doctrine\DBAL\Logging\DebugStack();
+				$this->_db->getConfiguration()->setSQLLogger($logger);
+			}
+
 			$this->_log->info("Transforming - START");
-			$this->_transform($prefix);
+
+			if (isset($transformConfig['process'])) {
+				$function = '_process' . $transformConfig['process'];
+				$this->$function($prefix);
+			} else {
+				$this->_transform($prefix);
+			}
 			$this->_log->info("Transforming - END");
+
+			if (isset($transformConfig['logging']) && $transformConfig['logging'] == 1) {
+				foreach($logger->queries as $query) {
+					fwrite($fh, $query['sql'] . PHP_EOL);
+				}
+			}
 		}
 
 		if (!isset($transformConfig['export']) || $transformConfig['export'] == 1) {
@@ -105,8 +143,6 @@ class SlevomatTransformation extends Component
 
 	protected function _transform($prefix)
 	{
-		$this->_initTransform($prefix);
-
 		$this->_processCreateProductSnapshots($prefix);
 
 		$this->_processAssignDealCategories($prefix);
@@ -341,6 +377,7 @@ class SlevomatTransformation extends Component
 	protected function _processCreateProductSnapshots($prefix)
 	{
 		$db = $this->_db;
+
 		// calculate additional data
 
 		$db->query("DROP TABLE IF EXISTS `{$prefix}.productsSnapshots`;");
@@ -352,8 +389,14 @@ class SlevomatTransformation extends Component
                 `commission` decimal(16,2) NOT NULL DEFAULT '0'
 			) COMMENT='' ENGINE='InnoDB' COLLATE 'utf8_general_ci';");
 
-		$products = $db->fetchAll("SELECT id, start, end, price, commission FROM `{$prefix}.products`");
+		$products = $db->fetchAll("SELECT id, start, end, price, commission FROM `{$prefix}.products`;");
 
+		$db->beginTransaction();
+
+		$sql = '';
+		$queryPrefix = "INSERT INTO `{$prefix}.productsSnapshots` (`date`, product, price, commission) VALUES ";
+
+		$cnt = 0;
 		foreach($products as $product) {
 			$dates = array();
 			$dateFrom = date("Y-m-d", strtotime($product["start"]));
@@ -365,15 +408,27 @@ class SlevomatTransformation extends Component
 				$currentDate = date("Y-m-d", strtotime("+1 day", strtotime($currentDate)));
 				$dates[] = $currentDate;
 			}
-			// Insert into DB
-			$query = "INSERT INTO `{$prefix}.productsSnapshots` (`date`, product, price, commission) VALUES ";
+
 			$queryArr = array();
 			foreach ($dates as $date) {
 				$queryArr[] = "('{$date}', {$product["id"]}, '{$product["price"]}', '{$product["commission"]}')";
 			}
-			$db->query($query . join(", ", $queryArr));
 
+			if ($cnt % 1000 == 0) {
+				if ($cnt != 0) {
+					$sql = substr($sql, 0, -1) . ";";
+					$db->query($sql);
+					$sql = '';
+				}
+				$sql .= $queryPrefix;
+			}
+			$sql .= join(",", $queryArr) . ",";
+
+			$cnt++;
 		}
+
+		$db->commit();
+
 		$this->_log->info("Slevomat: Created products-date snapshots.");
 		return true;
 	}
@@ -389,102 +444,149 @@ class SlevomatTransformation extends Component
 		$db = $this->_db;
 
 		$products = $db->fetchAll("SELECT id, cities FROM `{$prefix}.products`");
-		foreach ($products as $product) {
-			if ($product["cities"] == "Praha") {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Praha', dealCategorySort = 1 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if ($product["cities"] == "Praha Extra") {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Praha Extra', dealCategorySort = 2 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if ($product["cities"] == "Brno") {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Brno', dealCategorySort = 3 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if ($product["cities"] == "Ostrava") {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Ostrava', dealCategorySort = 4 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if ($product["cities"] == "Olomouc a Haná") {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Olomouc a Haná', dealCategorySort = 5 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if ($product["cities"] == "HK a Pardubice") {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'HK a Pardubice', dealCategorySort = 6 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if ($product["cities"] == "Zlín a okolí") {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Zlín a okolí', dealCategorySort = 7 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if ($product["cities"] == "Plzeň") {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Plzeň', dealCategorySort = 8 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if ($product["cities"] == "Liberec") {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Liberec', dealCategorySort = 9 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if ($product["cities"] == "Karlovy Vary") {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Karlovy Vary', dealCategorySort = 10 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if ($product["cities"] == "České Budějovice") {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'České Budějovice', dealCategorySort = 11 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if ($product["cities"] == "Ústí n. L. a Teplice") {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Ústí n. L. a Teplice', dealCategorySort = 12 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if ($product["cities"] == "Jihlava a Vysočina") {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Jihlava a Vysočina', dealCategorySort = 13 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if (strpos($product["cities"], "Móda") !== false) {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Móda', dealCategorySort = 14 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if (strpos($product["cities"], "Cestování") !== false) {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Cestování', dealCategorySort = 15 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if (strpos($product["cities"], "Zboží") !== false) {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Zboží', dealCategorySort = 16 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if (strpos($product["cities"], "Víno") !== false) {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Víno', dealCategorySort = 17 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if (strpos($product["cities"], "Praha") !== false || strpos($product["cities"], "Praha Extra") !== false) {
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Pha', dealCategorySort = 18 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if (strpos($product["cities"], "Brno") !== false
-				|| strpos($product["cities"], "Ostrava") !== false
-				|| strpos($product["cities"], "Plzeň") !== false
-			)
-			{
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'R1', dealCategorySort = 19 WHERE id = {$product["id"]}");
-				continue;
-			}
-			if (strpos($product["cities"], "Olomouc a Haná") !== false
-				|| strpos($product["cities"], "HK a Pardubice") !== false
-				|| strpos($product["cities"], "Zlín a okolí") !== false
-				|| strpos($product["cities"], "Liberec") !== false
-				|| strpos($product["cities"], "Karlovy Vary") !== false
-				|| strpos($product["cities"], "České Budějovice") !== false
-				|| strpos($product["cities"], "Ústí n. L. a Teplice") !== false
-				|| strpos($product["cities"], "Jihlava a Vysočina") !== false
-			)
-			{
-				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'R2', dealCategorySort = 20 WHERE id = {$product["id"]}");
-				continue;
-			}
-			$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Other', dealCategorySort = 21 WHERE id = {$product["id"]}");
-		}
+
+		$db->beginTransaction();
+
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Other', dealCategorySort = 21");
+
+		$db->query("
+			UPDATE `{$prefix}.products` SET dealCategory = 'Pha', dealCategorySort = 18
+			WHERE cities LIKE '%Praha%'
+		");
+		$db->query("
+			UPDATE `{$prefix}.products` SET dealCategory = 'R1', dealCategorySort = 19
+			WHERE cities LIKE '%Brno%' || '%Ostrava%' || '%Plzeň%'
+		");
+		$db->query("
+			UPDATE `{$prefix}.products`
+			SET dealCategory = 'R2', dealCategorySort = 20
+			WHERE cities LIKE '%Olomouc a Haná%'
+				|| cities LIKE '%HK a Pardubice%'
+				|| cities LIKE '%Zlín a okolí%'
+				|| cities LIKE '%Liberec%'
+				|| cities LIKE '%Karlovy Vary%'
+				|| cities LIKE '%České Budějovice%'
+				|| cities LIKE '%Ústí n. L. a Teplice%'
+				|| cities LIKE '%Jihlava a Vysočina%'
+		");
+
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Praha', dealCategorySort = 1 WHERE cities = 'Praha'");
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Praha Extra', dealCategorySort = 2 WHERE cities = 'Praha Extra'");
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Brno', dealCategorySort = 3 WHERE cities = 'Brno'");
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Ostrava', dealCategorySort = 4 WHERE cities = 'Ostrava'");
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Olomouc a Haná', dealCategorySort = 5 WHERE cities = 'Olomouc a Haná'");
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'HK a Pardubice', dealCategorySort = 6 WHERE cities = 'HK a Pardubice'");
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Zlín a okolí', dealCategorySort = 7 WHERE cities = 'Zlín a okolí'");
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Plzeň', dealCategorySort = 8 WHERE cities = 'Plzeň'");
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Liberec', dealCategorySort = 9 WHERE cities = 'Liberec'");
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Karlovy Vary', dealCategorySort = 10 WHERE cities = 'Karlovy Vary'");
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'České Budějovice', dealCategorySort = 11 WHERE cities = 'České Budějovice'");
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Ústí n. L. a Teplice', dealCategorySort = 12 WHERE cities = 'Ústí n. L. a Teplice'");
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Jihlava a Vysočina', dealCategorySort = 13 WHERE cities = 'Jihlava a Vysočina'");
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Móda', dealCategorySort = 14 WHERE cities LIKE '%Móda%'");
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Cestování', dealCategorySort = 15 WHERE cities LIKE '%Cestování%'");
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Zboží', dealCategorySort = 16 WHERE cities LIKE '%Zboží%'");
+		$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Víno', dealCategorySort = 17 WHERE cities LIKE '%Víno%'");
+
+//		foreach ($products as $product) {
+//			if ($product["cities"] == "Praha") {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Praha', dealCategorySort = 1 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if ($product["cities"] == "Praha Extra") {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Praha Extra', dealCategorySort = 2 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if ($product["cities"] == "Brno") {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Brno', dealCategorySort = 3 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if ($product["cities"] == "Ostrava") {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Ostrava', dealCategorySort = 4 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if ($product["cities"] == "Olomouc a Haná") {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Olomouc a Haná', dealCategorySort = 5 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if ($product["cities"] == "HK a Pardubice") {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'HK a Pardubice', dealCategorySort = 6 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if ($product["cities"] == "Zlín a okolí") {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Zlín a okolí', dealCategorySort = 7 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if ($product["cities"] == "Plzeň") {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Plzeň', dealCategorySort = 8 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if ($product["cities"] == "Liberec") {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Liberec', dealCategorySort = 9 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if ($product["cities"] == "Karlovy Vary") {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Karlovy Vary', dealCategorySort = 10 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if ($product["cities"] == "České Budějovice") {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'České Budějovice', dealCategorySort = 11 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if ($product["cities"] == "Ústí n. L. a Teplice") {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Ústí n. L. a Teplice', dealCategorySort = 12 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if ($product["cities"] == "Jihlava a Vysočina") {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Jihlava a Vysočina', dealCategorySort = 13 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if (strpos($product["cities"], "Móda") !== false) {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Móda', dealCategorySort = 14 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if (strpos($product["cities"], "Cestování") !== false) {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Cestování', dealCategorySort = 15 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if (strpos($product["cities"], "Zboží") !== false) {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Zboží', dealCategorySort = 16 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if (strpos($product["cities"], "Víno") !== false) {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Víno', dealCategorySort = 17 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if (strpos($product["cities"], "Praha") !== false || strpos($product["cities"], "Praha Extra") !== false) {
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Pha', dealCategorySort = 18 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if (strpos($product["cities"], "Brno") !== false
+//				|| strpos($product["cities"], "Ostrava") !== false
+//				|| strpos($product["cities"], "Plzeň") !== false
+//			)
+//			{
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'R1', dealCategorySort = 19 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			if (strpos($product["cities"], "Olomouc a Haná") !== false
+//				|| strpos($product["cities"], "HK a Pardubice") !== false
+//				|| strpos($product["cities"], "Zlín a okolí") !== false
+//				|| strpos($product["cities"], "Liberec") !== false
+//				|| strpos($product["cities"], "Karlovy Vary") !== false
+//				|| strpos($product["cities"], "České Budějovice") !== false
+//				|| strpos($product["cities"], "Ústí n. L. a Teplice") !== false
+//				|| strpos($product["cities"], "Jihlava a Vysočina") !== false
+//			)
+//			{
+//				$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'R2', dealCategorySort = 20 WHERE id = {$product["id"]}");
+//				continue;
+//			}
+//			$db->query("UPDATE `{$prefix}.products` SET dealCategory = 'Other', dealCategorySort = 21 WHERE id = {$product["id"]}");
+//		}
+
+		$db->commit();
+
 		$this->_log->info("Slevomat: Assigned deal categories.");
 
 		return true;

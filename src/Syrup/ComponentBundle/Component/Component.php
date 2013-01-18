@@ -71,6 +71,9 @@ class Component implements ComponentInterface
 	 */
 	public function run($params = null)
 	{
+		$this->_log->debug("Component " . $this->_prefix . "-" . $this->_name . " started.");
+		$timestart = microtime(true);
+
 		$config = $this->getConfig();
 
 		// $result should be instance of Table or array of Table objects
@@ -81,6 +84,9 @@ class Component implements ComponentInterface
 				$this->_saveTable($table);
 			}
 		}
+
+		$duration = microtime(true) - $timestart;
+		$this->_log->info("Component: " . $this->_name . " finished. Duration: " . $duration);
 	}
 
 	/**
