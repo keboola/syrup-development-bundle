@@ -18,6 +18,7 @@ class AppKernel extends Kernel
             new Syrup\ComponentBundle\SyrupComponentBundle(),
 //            new Syrup\GoogleAnalyticsBundle\SyrupGoogleAnalyticsBundle(),
             new Syrup\SlevomatBundle\SyrupSlevomatBundle(),
+            new Syrup\CoreBundle\SyrupCoreBundle(),
         );
 
         if (in_array($this->getEnvironment(), array('dev', 'test'))) {
