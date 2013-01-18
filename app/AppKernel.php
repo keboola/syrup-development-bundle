@@ -16,8 +16,7 @@ class AppKernel extends Kernel
             new Doctrine\Bundle\DoctrineBundle\DoctrineBundle(),
             new Sensio\Bundle\FrameworkExtraBundle\SensioFrameworkExtraBundle(),
             new Syrup\ComponentBundle\SyrupComponentBundle(),
-            new Syrup\GoogleAnalyticsBundle\SyrupGoogleAnalyticsBundle(),
-            new Syrup\AwsBundle\SyrupAwsBundle(),
+//            new Syrup\GoogleAnalyticsBundle\SyrupGoogleAnalyticsBundle(),
             new Syrup\SlevomatBundle\SyrupSlevomatBundle(),
         );
 

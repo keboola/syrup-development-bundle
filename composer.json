@@ -4,6 +4,12 @@
     "autoload": {
         "psr-0": { "": "src/" }
     },
+	"repositories": [
+		{
+			"type": "vcs",
+			"url": "git@bitbucket.org:keboola/syrup-slevomat-bundle.git"
+		}
+	],
     "require": {
         "php": ">=5.3.3",
         "symfony/symfony": "2.1.*",
@@ -18,7 +24,8 @@
 	    "keboola/csv": "1.0.*",
 	    "guzzle/guzzle": "3.0.*",
 	    "amazonwebservices/aws-sdk-for-php": "1.5.*",
-	    "syrup/component-bundle": "1.0.0"
+	    "syrup/component-bundle": "1.0.*",
+	    "syrup/slevomat-bundle": "1.0.*"
     },
     "scripts": {
         "post-install-cmd": [
