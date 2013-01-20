@@ -6,7 +6,7 @@
  * @created: 18.1.13
  */
 
-namespace Syrup\CoreBundle\RegisterBundleCommand;
+namespace Syrup\CoreBundle\Command;
 
 use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
 use Symfony\Component\Console\Input\InputArgument;
