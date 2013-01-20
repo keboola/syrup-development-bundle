@@ -10,21 +10,15 @@ It is based on Symfony2 framework.
 When it comes to installing the Syrup, you have the
 following options.
 
-### Clone from bitbucket (*recommended*)
-
-Clone from bitbkucet.
-
-Create app/config/parameters.yml file.
-
-Run "composer update" from command line;
-
-### Download an Archive File
-
-Download archive.
+- Clone from BitBucket (*recommended*)
+- Download an Archive File
 
 Create app/config/parameters.yml file.
 
-Run "composer update" from command line;
+Remove unwanted bundles from composer.json and app/AppKernel.php.
+
+Run "composer update" from command line.
+
 
 2) Checking your System Configuration
 -------------------------------------
