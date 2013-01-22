@@ -24,7 +24,7 @@
 	    "keboola/csv": "1.0.*",
 	    "guzzle/guzzle": "3.0.*",
 	    "syrup/component-bundle": "1.0.0",
-	    "syrup/slevomat-bundle": "1.0.5"
+	    "syrup/slevomat-bundle": "1.0.*"
     },
     "scripts": {
         "post-install-cmd": [
