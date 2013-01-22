@@ -206,12 +206,12 @@
             "source": {
                 "type": "git",
                 "url": "git://github.com/doctrine/doctrine2.git",
-                "reference": "6829c464e88cccd7a2a0714e42e95f3930b38e37"
+                "reference": "6d25c4e08a5fb37109e19f5f72e2a2c2aefc3b31"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://github.com/doctrine/doctrine2/archive/6829c464e88cccd7a2a0714e42e95f3930b38e37.zip",
-                "reference": "6829c464e88cccd7a2a0714e42e95f3930b38e37",
+                "url": "https://github.com/doctrine/doctrine2/archive/6d25c4e08a5fb37109e19f5f72e2a2c2aefc3b31.zip",
+                "reference": "6d25c4e08a5fb37109e19f5f72e2a2c2aefc3b31",
                 "shasum": ""
             },
             "require": {
@@ -223,7 +223,7 @@
             "suggest": {
                 "symfony/yaml": "If you want to use YAML Metadata Mapping Driver"
             },
-            "time": "2013-01-12 09:32:44",
+            "time": "2013-01-20 19:12:44",
             "bin": [
                 "bin/doctrine",
                 "bin/doctrine.php"
@@ -932,12 +932,12 @@
         },
         {
             "name": "syrup/slevomat-bundle",
-            "version": "1.0.1",
+            "version": "1.0.4",
             "target-dir": "Syrup/SlevomatBundle",
             "source": {
                 "type": "git",
                 "url": "git@bitbucket.org:keboola/syrup-slevomat-bundle.git",
-                "reference": "1.0.1"
+                "reference": "1.0.4"
             },
             "require": {
                 "php": ">=5.3.5",
@@ -949,7 +949,7 @@
                 "keboola/storage-api-client": "2.5.6",
                 "keboola/csv": "1.0.*"
             },
-            "time": "2013-01-20 18:54:08",
+            "time": "2013-01-20 19:27:43",
             "type": "symfony-bundle",
             "autoload": {
                 "psr-0": {
