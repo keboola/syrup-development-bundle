@@ -1,15 +1,9 @@
 {
-    "name": "syrup",
-    "description": "Syrup - Concentrated extract(or)s",
+    "name": "syrup-development-bundle",
+    "description": "Syrup wrapper clone for bundle development",
     "autoload": {
         "psr-0": { "": "src/" }
     },
-	"repositories": [
-		{
-			"type": "vcs",
-			"url": "git@bitbucket.org:keboola/syrup-slevomat-bundle.git"
-		}
-	],
     "require": {
         "php": ">=5.3.3",
         "symfony/symfony": "2.1.*",
@@ -23,8 +17,7 @@
 	    "keboola/storage-api-client": "2.5.6",
 	    "keboola/csv": "1.0.*",
 	    "guzzle/guzzle": "3.0.*",
-	    "syrup/component-bundle": "1.0.0",
-	    "syrup/slevomat-bundle": "1.0.*"
+	    "syrup/component-bundle": "1.0.0"
     },
     "scripts": {
         "post-install-cmd": [
