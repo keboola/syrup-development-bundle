@@ -1,5 +1,5 @@
 {
-    "name": "syrup-development-bundle",
+    "name": "syrup/development-bundle",
     "description": "Syrup wrapper clone for bundle development",
     "autoload": {
         "psr-0": { "": "src/" }
