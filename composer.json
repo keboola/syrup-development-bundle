@@ -14,7 +14,6 @@
         "sensio/distribution-bundle": "2.2.*",
         "sensio/framework-extra-bundle": "2.2.*",
         "sensio/generator-bundle": "2.2.*",
-        "syrup/component-bundle": "1.0.*"
     },
     "scripts": {
         "post-install-cmd": [
