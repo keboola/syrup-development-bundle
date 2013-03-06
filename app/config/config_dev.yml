@@ -12,6 +12,7 @@ web_profiler:
 monolog:
     handlers:
         syslog:
+            ident: %app_name%
             type: syslog
             level: debug
             formatter: syrup.monolog.json_formatter
