@@ -23,20 +23,30 @@ class RegisterBundleCommand extends ContainerAwareCommand
 			->setName('syrup:register-bundle')
 			->setDescription('Register your bundle to Syrup. This will create basic configuration for you and register bundle to app/AppKernel.php')
 			->addArgument('name', InputArgument::REQUIRED, 'Name of your bundle i.e. Syrup/CoreBundle')
-			->addArgument('url', InputArgument::REQUIRED, 'Repository url where your bundle resides')
 		;
 	}
 
 	protected function execute(InputInterface $input, OutputInterface $output)
 	{
 		$name = $input->getArgument('name');
-		$url = $input->getArgument('url');
 
 		//update Kernel
 		$kernelManipulator = new KernelManipulator($this->getContainer()->get('kernel'));
 
+		$nameArr = explode('/', $name);
+
+		$bundle = array_pop($nameArr);;
+
+		$class = '';
+		$namespace = '';
+		foreach ($nameArr as $name) {
+			$class .= $name;
+			$namespace .= $name . '\\';
+		}
+		$class .= $bundle;
+
 		try {
-			$kernelManipulator->addBundle($namespace.'\\'.$bundle);
+			$kernelManipulator->addBundle($namespace . $bundle . '\\' . $class);
 		} catch (\RuntimeException $e) {
 			return array(
 				sprintf('Bundle <comment>%s</comment> is already defined in <comment>AppKernel::registerBundles()</comment>.', $namespace.'\\'.$bundle),
@@ -44,6 +54,6 @@ class RegisterBundleCommand extends ContainerAwareCommand
 			);
 		}
 
-		//$output->writeln($text);
+		$output->writeln("Bundle succesfully registered to Kernel.");
 	}
 }
