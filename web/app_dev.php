@@ -19,7 +19,7 @@ use Symfony\Component\HttpFoundation\Request;
 //    exit('You are not allowed to access this file. Check '.basename(__FILE__).' for more information.');
 //}
 
-define(ROOT_PATH, __DIR__.'/../');
+define('ROOT_PATH', __DIR__.'/../');
 
 $loader = require_once __DIR__.'/../app/bootstrap.php.cache';
 require_once __DIR__.'/../app/AppKernel.php';
