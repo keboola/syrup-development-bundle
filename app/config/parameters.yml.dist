@@ -1,0 +1,29 @@
+parameters:
+    app_name:          syrup-development-bundle
+
+    database_driver:   pdo_mysql
+    database_host:     localhost
+    database_port:     ~
+    database_name:     symfony
+    database_user:     root
+    database_password: ~
+
+    mailer_transport:  smtp
+    mailer_host:       localhost
+    mailer_user:       ~
+    mailer_password:   ~
+
+    locale:            en
+    secret:            ThisTokenIsNotSoSecretChangeIt
+
+    storageApi.test.token: 219-4c2d9bad6341fd4c1b6187a4048e3c25520a09e2
+
+    uploader.aws-access-key: ***REMOVED***
+    uploader.aws-secret-key: ***REMOVED***
+    uploader.s3-upload-path: keboola-logs/debug-files
+    uploader.bitly-login:    ***REMOVED***
+    uploader.bitly-api-key:  ***REMOVED***
+
+    components:
+        ex-dummy:
+            class:  Syrup\ComponentBundle\Component\DummyExtractor
