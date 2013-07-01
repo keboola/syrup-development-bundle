@@ -2,6 +2,7 @@
 
 use Symfony\Component\HttpKernel\Kernel;
 use Symfony\Component\Config\Loader\LoaderInterface;
+use Symfony\Component\Yaml\Parser;
 
 class AppKernel extends Kernel
 {
@@ -25,6 +26,13 @@ class AppKernel extends Kernel
             $bundles[] = new Sensio\Bundle\GeneratorBundle\SensioGeneratorBundle();
         }
 
+	    foreach ($this->getComponents() as $component) {
+		    if (isset($component['bundle'])) {
+			    $bundleClassName = $component['bundle'];
+			    $bundles[] = new $bundleClassName;
+		    }
+	    }
+
         return $bundles;
     }
 
@@ -32,4 +40,12 @@ class AppKernel extends Kernel
     {
         $loader->load(__DIR__.'/config/config_'.$this->getEnvironment().'.yml');
     }
+
+	public function getComponents()
+	{
+		$yaml = new Parser();
+		$parameters = $yaml->parse(file_get_contents(__DIR__.'/config/parameters.yml'));
+
+		return $parameters['parameters']['components'];
+	}
 }
