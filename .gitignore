@@ -6,4 +6,5 @@
 /app/config/parameters.yml
 /.idea/
 /tmp/*
+/bin
 composer.lock
