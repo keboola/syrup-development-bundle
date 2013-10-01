@@ -2,6 +2,8 @@ parameters:
 #    syrup_core.example.class: Syrup\CoreBundle\Example
 
 services:
-#    syrup_core.example:
-#        class: %syrup_core.example.class%
-#        arguments: [@service_id, "plain_value", %parameter%]
+    syrup_core.routing_loader:
+        class: Syrup\CoreBundle\Routing\Loader
+        arguments: [%components%]
+        tags:
+            - { name: routing.loader }
