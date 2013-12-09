@@ -16,11 +16,11 @@ parameters:
     locale:            en
     secret:            ThisTokenIsNotSoSecretChangeIt
 
-    uploader.aws-access-key: AKIAJJKM4R26QUNBFPTA
-    uploader.aws-secret-key: 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
+    uploader.aws-access-key:
+    uploader.aws-secret-key:
     uploader.s3-upload-path: keboola-logs/debug-files
-    uploader.bitly-login:    petrsimecek
-    uploader.bitly-api-key:  R_35ed95e18188c58f7b42787f358857ea
+    uploader.bitly-login:
+    uploader.bitly-api-key:
 
     storage_api.test.token:
     shared_sapi.token:
