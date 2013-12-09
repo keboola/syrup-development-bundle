@@ -13,6 +13,7 @@ use Symfony\Component\Debug\Debug;
 define('ROOT_PATH', __DIR__.'/../');
 
 $loader = require_once __DIR__.'/../app/bootstrap.php.cache';
+date_default_timezone_set('Europe/Prague');
 Debug::enable();
 
 require_once __DIR__.'/../app/AppKernel.php';
