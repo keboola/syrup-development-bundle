@@ -16,13 +16,14 @@ parameters:
     locale:            en
     secret:            ThisTokenIsNotSoSecretChangeIt
 
-    storageApi.test.token: 219-4c2d9bad6341fd4c1b6187a4048e3c25520a09e2
-
-    uploader.aws-access-key: AKIAJJKM4R26QUNBFPTA
-    uploader.aws-secret-key: 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
+    uploader.aws-access-key:
+    uploader.aws-secret-key:
     uploader.s3-upload-path: keboola-logs/debug-files
-    uploader.bitly-login:    petrsimecek
-    uploader.bitly-api-key:  R_35ed95e18188c58f7b42787f358857ea
+    uploader.bitly-login:
+    uploader.bitly-api-key:
+
+    storage_api.test.token:
+    shared_sapi.token:
 
     components:
         ex-dummy:
