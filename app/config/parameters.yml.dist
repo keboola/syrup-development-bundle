@@ -22,7 +22,11 @@ parameters:
     uploader.bitly-login:
     uploader.bitly-api-key:
 
+    storage_api.url:
+    storage_api.test.url:
     storage_api.test.token:
+
+    shared_sapi.url:
     shared_sapi.token:
 
     components:
