@@ -18,7 +18,7 @@
 		"sensio/generator-bundle": "2.3.*",
 		"incenteev/composer-parameter-handler": "~2.0",
 		"symfony/swiftmailer-bundle": "2.3.*",
-	    "leafo/lessphp": "dev-master"
+	    "leafo/lessphp": ">=0.4.0"
     },
     "scripts": {
         "post-install-cmd": [
